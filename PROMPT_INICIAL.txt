@@ -1,0 +1,14 @@
+Leia integralmente AGENTS.md, TASK.md e todos os arquivos em docs/ antes de qualquer edição.
+
+Execute somente a Fase 1 neste primeiro ciclo:
+1. audite os dois HTMLs;
+2. compare funções, IDs, handlers, storage keys e regras clínicas;
+3. crie reports/FUNCTION_COMPARISON.md;
+4. crie reports/IMPLEMENTATION_PLAN.md;
+5. crie testes de caracterização da baseline;
+6. execute os testes possíveis;
+7. não implemente ainda a consolidação;
+8. não edite os arquivos em baseline/ ou reference/;
+9. pare ao terminar a análise e apresente os conflitos e riscos encontrados.
+
+Se qualquer instrução parecer ambígua, preserve a baseline clínica e registre a ambiguidade em vez de decidir silenciosamente.
