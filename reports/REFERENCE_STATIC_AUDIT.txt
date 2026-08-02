@@ -1,0 +1,3 @@
+Arquivo: /mnt/data/RechDocs-Consolidacao-Codex/reference/RechDocs_v3.4.0_reference.html
+IDs: 60 | scripts inline: 1
+PASSOU na auditoria estática mínima
