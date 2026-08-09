@@ -75,3 +75,5 @@ DST.write_text(text, encoding='utf-8')
 print(f'OK: {DST} gerado ({len(text)} bytes).')
 print('OpenAI: Luna + Terra + Sol.')
 print('ANTITROMBÓTICOS: removidos como seção dedicada; conteúdo clínico permanece disponível em MUC/profilaxias/condutas.')
+
+# Trigger do workflow: manter esta linha para builds reproduzíveis do hotfix de uso imediato.
