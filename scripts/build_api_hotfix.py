@@ -1,6 +1,5 @@
 from pathlib import Path
 import re
-import sys
 
 SRC = Path('output/RechDocs_v3.4.1.html')
 DST = Path('output/RechDocs_v3.4.1_API_HOTFIX.html')
@@ -65,15 +64,15 @@ assert 'ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:' not in text
 assert "structuredTargets=[...activeDVA,...activeATB,...activeSed,...activeDev].filter" in text
 assert SRC.read_text(encoding='utf-8') == original
 
-# Sanidade estática simples: IDs HTML literais duplicados.
-ids = re.findall(r'\bid=[\"\']([^\"\']+)[\"\']', text)
+# Sanidade estática: verificar IDs apenas na marcação HTML anterior ao primeiro <script>.
+# Isso evita confundir strings/atribuições JS dinâmicas (ex.: id='i'+Date.now()) com IDs DOM literais.
+static_html = text.split('<script', 1)[0]
+ids = re.findall(r'\bid=[\"\']([^\"\']+)[\"\']', static_html)
 dup_ids = sorted({x for x in ids if ids.count(x) > 1})
 if dup_ids:
-    raise SystemExit('IDs HTML duplicados após hotfix: ' + ', '.join(dup_ids))
+    raise SystemExit('IDs HTML estáticos duplicados após hotfix: ' + ', '.join(dup_ids))
 
 DST.write_text(text, encoding='utf-8')
 print(f'OK: {DST} gerado ({len(text)} bytes).')
 print('OpenAI: Luna + Terra + Sol.')
 print('ANTITROMBÓTICOS: removidos como seção dedicada; conteúdo clínico permanece disponível em MUC/profilaxias/condutas.')
-
-# Trigger do workflow: manter esta linha para builds reproduzíveis do hotfix de uso imediato.
