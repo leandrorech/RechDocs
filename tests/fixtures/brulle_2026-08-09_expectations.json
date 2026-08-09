@@ -1,0 +1,30 @@
+{
+  "case": "Brulle Angelo Mangubat Vidal - 2026-08-09",
+  "required_fragments": [
+    "MEDICAÇÕES DE USO CONTÍNUO:",
+    "NEGA",
+    "INTERCONSULTAS:",
+    "INFECTOLOGIA (09/08)",
+    "ARTEMETER 20 MG + LUMEFANTRINA 120 MG",
+    "GOTA ESPESSA",
+    "07/08/2026"
+  ],
+  "forbidden_fragments": [
+    "## ANTITROMBÓTICOS EM USO",
+    "## ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS",
+    "ANTITROMBÓTICOS EM USO:",
+    "ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:",
+    "## MEDICAÇÕES DE USO CONTINUO",
+    "## INTERCONSULTAS",
+    "ARTEMETER + LUMEFANTRINA ARTEMETER"
+  ],
+  "semantic_assertions": [
+    "MUC NEGA deve permanecer como negação explícita, nunca seção vazia.",
+    "Parecer da Infectologia deve preservar especialidade, data e autoria/proveniência.",
+    "Ausência de rede de apoio não deve ser classificada automaticamente como DEMANDA FAMILIAR.",
+    "USG de abdome solicitado e posteriormente aguardado deve ser reconciliado sem duplicação semântica.",
+    "Recomendação de permanência em UTI e solicitação de transferência para enfermaria devem permanecer rastreáveis; não resolver a divergência por plausibilidade.",
+    "Laboratórios extensos devem ser compactados por data/conjunto clínico sem apagar anormalidades, temporalidade ou unidades necessárias.",
+    "Nenhum marcador Markdown interno deve vazar para o texto final."
+  ]
+}
