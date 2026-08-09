@@ -61,7 +61,7 @@ jobs:
 
       - name: Commit generated hotfix
         run: |
-          if git diff --quiet -- output/RechDocs_v3.4.1_API_HOTFIX.html; then
+          if [ -z "$(git status --porcelain -- output/RechDocs_v3.4.1_API_HOTFIX.html)" ]; then
             echo 'Hotfix já está atualizado.'
             exit 0
           fi
