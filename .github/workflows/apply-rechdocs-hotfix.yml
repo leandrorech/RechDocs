@@ -25,7 +25,6 @@ jobs:
           s = p.read_text(encoding='utf-8')
           original = s
 
-          # Remove antithrombotic sections from FINAL templates only.
           for block in (
               "\nANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}\n",
               "\nANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}\n",
@@ -128,7 +127,6 @@ jobs:
               'Pré-evolução gerada com pendências clínicas — revise e corrija diretamente no preview; após sua edição, copiar/imprimir serão liberados.'
           )
 
-          # Make the result header explicitly say it is editable.
           s = s.replace(
               "document.getElementById('output-title').textContent=prefillActive?'PRÉ-EVOLUÇÃO EDITÁVEL — REVISÃO OBRIGATÓRIA':titles[MODE];",
               "document.getElementById('output-title').textContent=prefillActive?'PRÉ-EVOLUÇÃO EDITÁVEL — REVISÃO OBRIGATÓRIA':titles[MODE]+' — PREVIEW EDITÁVEL';"
@@ -159,12 +157,14 @@ jobs:
           ! grep -Fq 'ANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}' "$FILE"
           ! grep -Fq 'ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}' "$FILE"
 
-      - name: Commit patched output
+      - name: Commit patched output to PR branch
         shell: bash
         run: |
           set -euo pipefail
+          BRANCH='hotfix/rechdocs-preview-20260810'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "$BRANCH"
           git add output/RechDocs_v3.4.1.html
           git commit -m 'fix: restore editable preview and requested RechDocs output rules'
-          git push
+          git push -u origin "$BRANCH" --force
