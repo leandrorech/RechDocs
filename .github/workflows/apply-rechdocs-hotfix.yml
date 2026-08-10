@@ -20,94 +20,130 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path('output/RechDocs_v3.4.1.html')
-          s=p.read_text(encoding='utf-8')
-          original=s
 
-          for block in [
-            "\nANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}\n",
-            "\nANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}\n",
-          ]:
-            s=s.replace(block,'')
+          p = Path('output/RechDocs_v3.4.1.html')
+          s = p.read_text(encoding='utf-8')
+          original = s
 
-          anchor='function renderAdmissao(d){'
+          # Remove antithrombotic sections from FINAL templates only.
+          for block in (
+              "\nANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}\n",
+              "\nANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}\n",
+          ):
+              s = s.replace(block, '')
+
+          anchor = 'function renderAdmissao(d){'
           if 'function sanitizeRenderedClinicalText(text)' not in s:
-            helper=r'''
-function sanitizeRenderedClinicalText(text){
-  let out=String(text||'');
-  out=out.replace(/^NUTRIÇÃO:\s*([^\n]+)$/gmi,(m,v)=>{
-    let x=String(v||'').replace(/\\_/g,'_').replace(/_/g,' ').replace(/\s+/g,' ').trim();
-    const parts=x.split(/\s+[—–-]\s+/).map(z=>z.trim()).filter(Boolean);
-    if(parts.length>=2 && keyName(parts[0])===keyName(parts[1]))x=parts[0];
-    if(/^VIA ORAL\s+[—–-]\s+VIA ORAL$/i.test(x))x='VIA ORAL';
-    return 'NUTRIÇÃO: '+(x||'---');
-  });
-  out=out.split('\n').map(line=>{
-    if(!/HEMOGRAMA:/i.test(line))return line;
-    let x=line;
-    [/HEMÁCIAS?\s*[:=]?\s*[^;|]+[;|]?\s*/ig,/VCM\s*[:=]?\s*[^;|]+[;|]?\s*/ig,/HCM\s*[:=]?\s*[^;|]+[;|]?\s*/ig,/CHCM\s*[:=]?\s*[^;|]+[;|]?\s*/ig,/RDW\s*[:=]?\s*[^;|]+[;|]?\s*/ig].forEach(re=>x=x.replace(re,''));
-    return x.replace(/;\s*;/g,'; ').replace(/\|\s*\|/g,'|').replace(/\s{2,}/g,' ').trim();
-  }).join('\n');
-  return out;
-}
+              helper = '''function sanitizeRenderedClinicalText(text){
+            let out=String(text||'');
+            out=out.replace(/^NUTRIÇÃO:\\s*([^\\n]+)$/gmi,(m,v)=>{
+              let x=String(v||'').replace(/\\\\_/g,'_').replace(/_/g,' ').replace(/\\s+/g,' ').trim();
+              const parts=x.split(/\\s+[—–-]\\s+/).map(z=>z.trim()).filter(Boolean);
+              if(parts.length>=2 && keyName(parts[0])===keyName(parts[1])) x=parts[0];
+              if(/^VIA ORAL\\s+[—–-]\\s+VIA ORAL$/i.test(x)) x='VIA ORAL';
+              return 'NUTRIÇÃO: '+(x||'---');
+            });
+            out=out.split('\\n').map(line=>{
+              if(!/HEMOGRAMA:/i.test(line)) return line;
+              let x=line;
+              [/HEMÁCIAS?\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig,/VCM\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig,/HCM\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig,/CHCM\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig,/RDW\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig].forEach(re=>x=x.replace(re,''));
+              return x.replace(/;\\s*;/g,'; ').replace(/\\|\\s*\\|/g,'|').replace(/\\s{2,}/g,' ').trim();
+            }).join('\\n');
+            return out;
+          }
 
-function applyClinicalHeadingBold(root){
-  if(!root)return;
-  const standalone=['EVOLUÇÃO PERÍODO DIURNO','EVOLUÇÃO PERÍODO NOTURNO','UTI GERAL I','UTI GERAL II','UTI GERAL III','EXAME CLINICO','EXAME CLÍNICO','ADMISSÃO','DOCUMENTO COMPLEMENTAR'];
-  const labels=['NOME','ALERGIAS','SAPS III','PESO','HIPÓTESES DIAGNOSTICAS','HIPÓTESES DIAGNÓSTICAS','HISTÓRIA DA DOENÇA ATUAL','HPMA','HD','ADMISSÃO UTI','ANTECEDENTES PATOLÓGICOS E CIRÚRGICOS','MEDICAÇÕES DE USO CONTINUO','MEDICAÇÕES DE USO CONTÍNUO','PROFILAXIAS','GÁSTRICA','TEP/ TVP','TEP/TVP','OUTROS','ANTIMICROBIANOS EM USO','ANTIMICROBIANOS QUE FORAM UTILIZADOS','SEDAÇÃO/ ANALGESIA','SEDAÇÃO / ANALGESIA','BLOQUEADOR NEUROMUSCULAR','OUTRAS INFUSÕES CONTÍNUAS','DROGAS VASOATIVAS','DISPOSITIVOS INVASIVOS','EXAMES DE MAIOR IMPORTÂNCIA','INTERCONSULTAS','AC','FC','PA','AP','NEUROLÓGICO','VENTILATÓRIO','ABDOME','MEMBROS SUPERIORES/ INFERIORES','MEMBROS SUPERIORES / INFERIORES','ULCERAS DE PRESSÃO','ÚLCERAS DE PRESSÃO','OUTRAS INFORMAÇÕES RELEVANTES','CONTROLES E BALANCOS DAS ULTIMAS 24 HORAS','CONTROLES E BALANÇOS DAS ÚLTIMAS 24 HORAS','NUTRIÇÃO','INTERCORRÊNCIAS','DEMANDA FAMILIAR','JUSTIFICATIVA DE PERMANÊNCIA EM UTI','CONDUTAS','EVOLUÇÃO MÉDICA','COMORBIDADES','MEDICAMENTOS EM USO','EXAME FÍSICO ATUAL','PARÂMETROS HEMODINÂMICOS ATUAIS','EXAMES RELEVANTES','IMPRESSÃO CLÍNICA'];
-  const esc=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  const labelRe=new RegExp('^\\s*('+labels.sort((a,b)=>b.length-a.length).map(esc).join('|')+')(:)','i');
-  const standaloneRe=new RegExp('^\\s*('+standalone.sort((a,b)=>b.length-a.length).map(esc).join('|')+')\\s*$','i');
-  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
-  nodes.forEach(node=>{
-    const parts=(node.nodeValue||'').split(/(\n)/);if(!parts.some(x=>labelRe.test(x)||standaloneRe.test(x)))return;
-    const frag=document.createDocumentFragment();
-    parts.forEach(part=>{
-      if(part==='\n'){frag.appendChild(document.createTextNode(part));return;}
-      let m=part.match(labelRe);
-      if(m){const idx=part.indexOf(m[1]);if(idx>0)frag.appendChild(document.createTextNode(part.slice(0,idx)));const b=document.createElement('strong');b.textContent=m[1]+m[2];frag.appendChild(b);frag.appendChild(document.createTextNode(part.slice(idx+m[1].length+m[2].length)));return;}
-      m=part.match(standaloneRe);if(m){const b=document.createElement('strong');b.textContent=part;frag.appendChild(b);return;}
-      frag.appendChild(document.createTextNode(part));
-    });node.replaceWith(frag);
-  });
-}
-'''
-            if anchor not in s: raise SystemExit('renderAdmissao anchor not found')
-            s=s.replace(anchor,helper+'\n'+anchor,1)
+          function applyClinicalHeadingBold(root){
+            if(!root)return;
+            const standalone=['EVOLUÇÃO PERÍODO DIURNO','EVOLUÇÃO PERÍODO NOTURNO','UTI GERAL I','UTI GERAL II','UTI GERAL III','EXAME CLINICO','EXAME CLÍNICO','ADMISSÃO','DOCUMENTO COMPLEMENTAR'];
+            const labels=['NOME','ALERGIAS','SAPS III','PESO','HIPÓTESES DIAGNOSTICAS','HIPÓTESES DIAGNÓSTICAS','HISTÓRIA DA DOENÇA ATUAL','HPMA','HD','ADMISSÃO UTI','ANTECEDENTES PATOLÓGICOS E CIRÚRGICOS','MEDICAÇÕES DE USO CONTINUO','MEDICAÇÕES DE USO CONTÍNUO','PROFILAXIAS','GÁSTRICA','TEP/ TVP','TEP/TVP','OUTROS','ANTIMICROBIANOS EM USO','ANTIMICROBIANOS QUE FORAM UTILIZADOS','SEDAÇÃO/ ANALGESIA','SEDAÇÃO / ANALGESIA','BLOQUEADOR NEUROMUSCULAR','OUTRAS INFUSÕES CONTÍNUAS','DROGAS VASOATIVAS','DISPOSITIVOS INVASIVOS','EXAMES DE MAIOR IMPORTÂNCIA','INTERCONSULTAS','AC','FC','PA','AP','NEUROLÓGICO','VENTILATÓRIO','ABDOME','MEMBROS SUPERIORES/ INFERIORES','MEMBROS SUPERIORES / INFERIORES','ULCERAS DE PRESSÃO','ÚLCERAS DE PRESSÃO','OUTRAS INFORMAÇÕES RELEVANTES','CONTROLES E BALANCOS DAS ULTIMAS 24 HORAS','CONTROLES E BALANÇOS DAS ÚLTIMAS 24 HORAS','NUTRIÇÃO','INTERCORRÊNCIAS','DEMANDA FAMILIAR','JUSTIFICATIVA DE PERMANÊNCIA EM UTI','CONDUTAS','EVOLUÇÃO MÉDICA','COMORBIDADES','MEDICAMENTOS EM USO','EXAME FÍSICO ATUAL','PARÂMETROS HEMODINÂMICOS ATUAIS','EXAMES RELEVANTES','IMPRESSÃO CLÍNICA'];
+            const esc=x=>x.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&');
+            const labelRe=new RegExp('^\\\\s*('+labels.sort((a,b)=>b.length-a.length).map(esc).join('|')+')(:)','i');
+            const standaloneRe=new RegExp('^\\\\s*('+standalone.sort((a,b)=>b.length-a.length).map(esc).join('|')+')\\\\s*$','i');
+            const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];
+            while(walker.nextNode())nodes.push(walker.currentNode);
+            nodes.forEach(node=>{
+              const parts=(node.nodeValue||'').split(/(\\n)/);
+              if(!parts.some(x=>labelRe.test(x)||standaloneRe.test(x)))return;
+              const frag=document.createDocumentFragment();
+              parts.forEach(part=>{
+                if(part==='\\n'){frag.appendChild(document.createTextNode(part));return;}
+                let m=part.match(labelRe);
+                if(m){const idx=part.indexOf(m[1]);if(idx>0)frag.appendChild(document.createTextNode(part.slice(0,idx)));const b=document.createElement('strong');b.textContent=m[1]+m[2];frag.appendChild(b);frag.appendChild(document.createTextNode(part.slice(idx+m[1].length+m[2].length)));return;}
+                m=part.match(standaloneRe);
+                if(m){const b=document.createElement('strong');b.textContent=part;frag.appendChild(b);return;}
+                frag.appendChild(document.createTextNode(part));
+              });
+              node.replaceWith(frag);
+            });
+          }
 
-          old='const rendered=renderers[MODE](renderData);'
-          new='const rendered=sanitizeRenderedClinicalText(renderers[MODE](renderData));'
-          if old in s:s=s.replace(old,new,1)
-          elif new not in s:raise SystemExit('rendered assignment not found')
+          function enableEditablePreview(){
+            const body=document.getElementById('output-body');
+            if(!body)return;
+            body.contentEditable='true';
+            body.spellcheck=true;
+            body.setAttribute('aria-label','Pré-visualização editável do documento');
+            body.title='Clique no texto para corrigir diretamente antes de copiar ou imprimir.';
+            body.style.outline='1px dashed rgba(0,217,245,.45)';
+            body.style.outlineOffset='-4px';
+          }
+          '''
+              if anchor not in s:
+                  raise SystemExit('renderAdmissao anchor not found')
+              s = s.replace(anchor, helper + '\n' + anchor, 1)
 
-          old="renderTraceableOutput(displayedRendered,traceResult.items);\n    renderTraceReview(traceResult.items);"
-          new="renderTraceableOutput(displayedRendered,traceResult.items);\n    applyClinicalHeadingBold(document.getElementById('output-body'));\n    renderTraceReview(traceResult.items);"
-          if old in s:s=s.replace(old,new,1)
-          elif "applyClinicalHeadingBold(document.getElementById('output-body'))" not in s:raise SystemExit('trace render anchor not found')
+          old = 'const rendered=renderers[MODE](renderData);'
+          new = 'const rendered=sanitizeRenderedClinicalText(renderers[MODE](renderData));'
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit('rendered assignment not found')
 
-          marker="window.addEventListener('DOMContentLoaded',()=>{"
-          if 'Edição manual registrada — cópia liberada' not in s:
-            listener=r'''document.addEventListener('input',(ev)=>{
-  const el=ev.target;
-  if(el && el.id==='prefill-editor'){
-    setCopyBlocked(false);
-    const state=document.getElementById('prefill-state');
-    if(state)state.textContent='Edição manual registrada — cópia liberada. Pendências continuam visíveis para conferência.';
-  }
-});
-'''
-            pos=s.find(marker)
-            if pos<0:raise SystemExit('DOMContentLoaded anchor not found')
-            s=s[:pos]+listener+'\n'+s[pos:]
+          old = "renderTraceableOutput(displayedRendered,traceResult.items);\n    renderTraceReview(traceResult.items);"
+          new = "renderTraceableOutput(displayedRendered,traceResult.items);\n    applyClinicalHeadingBold(document.getElementById('output-body'));\n    enableEditablePreview();\n    renderTraceReview(traceResult.items);"
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif 'enableEditablePreview();' not in s:
+              raise SystemExit('trace render anchor not found')
 
-          s=s.replace('Pré-evolução gerada com pendências clínicas — edição não remove o bloqueio; corrija a fonte e gere novamente.','Pré-evolução gerada com pendências clínicas — revise e corrija manualmente; após sua edição, a cópia será liberada.')
+          marker = "window.addEventListener('DOMContentLoaded',()=>{"
+          if 'Correção manual registrada — cópia e impressão liberadas' not in s:
+              listener = '''document.addEventListener('input',(ev)=>{
+            const el=ev.target;
+            if(el && (el.id==='output-body' || el.id==='prefill-editor')){
+              setCopyBlocked(false);
+              const state=document.getElementById('prefill-state');
+              if(state)state.textContent='Correção manual registrada — cópia e impressão liberadas. Pendências continuam visíveis para conferência.';
+              setStatus('success','Correção manual registrada — esta versão do preview será usada ao copiar/imprimir.');
+            }
+          });
+          '''
+              pos = s.find(marker)
+              if pos < 0:
+                  raise SystemExit('DOMContentLoaded anchor not found')
+              s = s[:pos] + listener + '\n' + s[pos:]
 
-          if 'ANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}' in s:raise SystemExit('active antithrombotic output remains')
-          if 'ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}' in s:raise SystemExit('prior antithrombotic output remains')
-          for x in ['sanitizeRenderedClinicalText','applyClinicalHeadingBold','Edição manual registrada — cópia liberada']:
-            if x not in s:raise SystemExit('missing '+x)
-          if s==original:raise SystemExit('no changes made')
-          p.write_text(s,encoding='utf-8')
+          s = s.replace(
+              'Pré-evolução gerada com pendências clínicas — edição não remove o bloqueio; corrija a fonte e gere novamente.',
+              'Pré-evolução gerada com pendências clínicas — revise e corrija diretamente no preview; após sua edição, copiar/imprimir serão liberados.'
+          )
+
+          # Make the result header explicitly say it is editable.
+          s = s.replace(
+              "document.getElementById('output-title').textContent=prefillActive?'PRÉ-EVOLUÇÃO EDITÁVEL — REVISÃO OBRIGATÓRIA':titles[MODE];",
+              "document.getElementById('output-title').textContent=prefillActive?'PRÉ-EVOLUÇÃO EDITÁVEL — REVISÃO OBRIGATÓRIA':titles[MODE]+' — PREVIEW EDITÁVEL';"
+          )
+
+          if 'ANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}' in s:
+              raise SystemExit('active antithrombotic output remains')
+          if 'ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}' in s:
+              raise SystemExit('prior antithrombotic output remains')
+          for required in ('sanitizeRenderedClinicalText','applyClinicalHeadingBold','enableEditablePreview','Correção manual registrada — cópia e impressão liberadas'):
+              if required not in s:
+                  raise SystemExit('missing '+required)
+          if s == original:
+              raise SystemExit('no changes made')
+          p.write_text(s, encoding='utf-8')
           PY
 
       - name: Static regression checks
@@ -117,7 +153,9 @@ function applyClinicalHeadingBold(root){
           FILE=output/RechDocs_v3.4.1.html
           grep -q 'function sanitizeRenderedClinicalText' "$FILE"
           grep -q 'function applyClinicalHeadingBold' "$FILE"
-          grep -q 'Edição manual registrada — cópia liberada' "$FILE"
+          grep -q 'function enableEditablePreview' "$FILE"
+          grep -q 'PREVIEW EDITÁVEL' "$FILE"
+          grep -q 'Correção manual registrada — cópia e impressão liberadas' "$FILE"
           ! grep -Fq 'ANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}' "$FILE"
           ! grep -Fq 'ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}' "$FILE"
 
@@ -128,5 +166,5 @@ function applyClinicalHeadingBold(root){
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add output/RechDocs_v3.4.1.html
-          git commit -m 'fix: apply requested RechDocs clinical output corrections'
+          git commit -m 'fix: restore editable preview and requested RechDocs output rules'
           git push
