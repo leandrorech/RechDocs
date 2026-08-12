@@ -1,81 +1,140 @@
 # Revalidação P0 — candidato atual (RechDocs v3.4.1)
 
 **Data:** 2026-08-12
-**Harness:** Playwright + Chromium headless (`/opt/pw-browsers/chromium`), executando `new ClinicalState(raw, modo, DEFAULT_DICT).resolve()` diretamente no contexto real de cada arquivo `.html`, sem extração de lógica para módulo separado. Ver `tests/characterization/README.md` para a decisão de arquitetura.
-**Specs:** `tests/characterization/harness/p0_01_vent_episode_leak.spec.mjs`, `p0_02_vm_extubation_conflict.spec.mjs`, `p0_03_copy_override_policy.spec.mjs`.
-**Runner:** `tests/characterization/harness/run-p0.mjs` (resultado bruto em `tests/characterization/reports/p0_run_result.json`).
+**Branch:** `claude/github-app-install-aft7xw`
+**Commit de freeze/scaffold anterior:** `b93fb134c54b6bcb1b288780239a49008d0c575f`
+**Harness:** Playwright + Chromium headless (`/opt/pw-browsers/chromium`), `BrowserContext` novo e isolado por (fixture × artefato) — sem `localStorage`/`sessionStorage`/cookies herdados entre execuções (IndexedDB não é usado por nenhum artefato — verificado por grep, 0 ocorrências). Timezone fixa `America/Sao_Paulo`, locale fixo `pt-BR`, mesma instalação de Chromium para os três artefatos. Nenhuma chamada de rede real ocorre nestas fixtures (todas testam `ClinicalState.resolve()`, `buildExamesCompactos()` ou `copiar()`/`COPY_BLOCKED` diretamente — nenhuma depende de `fetch()` a provedor de IA).
+**Módulos:** `tests/characterization/harness/{browser-adapter,capture-state,normalize-output,compare-results,run-characterization}.mjs`
+**Fixtures:** `tests/characterization/fixtures/{p0_01_vent_episode_leak,p0_02_vm_extubation_conflict,p0_03_copy_override_policy,ci_05_exam_compaction}.mjs`
+**Comando:** `node tests/characterization/harness/run-characterization.mjs`
+**Resultado bruto completo:** `tests/characterization/reports/characterization_run_result.json`
 
-## Por que este relatório existe
+## Regra seguida nesta fase
 
-`reports/RECHDOCS_ANALISE_COMPLETA_2026-08-02.md` documentou os achados P0-01/P0-02/P0-03 contra um `RechDocs_v3.4.1.html` de **216.381 bytes** (SHA-256 `c57b9e01cbcead0d8878f3c28d79c007c2bfec91fff272d04af39ebe25e1e2e0`). O candidato atual no repositório é **outro arquivo**:
+**Nenhuma correção foi aplicada.** Sequência executada: `HARNESS → FIXTURE → EXECUTION → EVIDENCE → CLASSIFICATION`, e parou aqui. `REGRESSION_RISKS.md`, `CHANGE_IMPACT.md` e `TEST_RESULTS.md` não foram tocados.
+
+## Artefatos testados (hash em cada execução, não assumido de memória)
 
 | Artefato | Caminho | Bytes | SHA-256 |
 |---|---|---|---|
 | Baseline (congelada) | `baseline/rech_docs_v3_3_12_P1.html` | 205.250 | `56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667` |
 | Referência v3.4.0 | `reference/RechDocs_v3.4.0_reference.html` | 187.738 | `6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073` |
-| **Candidato atual** | `output/RechDocs_v3.4.1.html` | **220.845** | **`f8bf499b1b8483f80457afdb32248ee7411abce54c0cc2c4ca30fd4b832814fa`** |
+| Candidata atual | `output/RechDocs_v3.4.1.html` | 220.845 | `f8bf499b1b8483f80457afdb32248ee7411abce54c0cc2c4ca30fd4b832814fa` |
 
-Baseline e referência batem exatamente com os hashes do relatório de 02/08 — são comparáveis. **O candidato não bate** — portanto os resultados P0 daquele relatório para a "candidata" são evidência histórica, não evidência do arquivo atual. Este documento reexecuta os três casos contra o artefato atual e registra o que foi de fato observado agora.
+Confirma-se novamente: a candidata histórica de 02/08 (216.381 bytes, hash `c57b9e01...`) **não é** este arquivo. Nenhum resultado deste relatório reutiliza veredito histórico sem reexecução.
 
-## Matriz de resultados
-
-| Caso | Baseline | Referência v3.4.0 | Candidata atual | Classificação |
-|---|---|---|---|---|
-| P0-01 — vazamento de parâmetros ventilatórios entre episódios | **FAIL** | PASS | **FAIL** | Ver análise abaixo |
-| P0-02a — empate simétrico ("intubado" × "extubado", controle) | PASS | PASS | PASS | EXPECTED_CHANGE (mecanismo funciona) |
-| P0-02b — empate assimétrico ("VM ativa" × "extubado") | **FAIL** | **FAIL** | **FAIL** | Ver análise abaixo |
-| P0-03 — política de cópia com override auditável | **FAIL** | **FAIL** | **FAIL** | EXPECTED_CHANGE (política não implementada em nenhum artefato) |
+---
 
 ## P0-01 — vazamento de parâmetros ventilatórios entre episódios
 
-**Fixture:** intubado VCV/PEEP 8/VC 420 em 01/07 → extubado em 02/07 → reintubado PCV/FiO2 40 em 03/07, sem PEEP/VC novos.
-**Esperado:** episódio novo com PCV/FiO2 40, sem herdar PEEP 8/VC 420.
+| Campo | Valor |
+|---|---|
+| **Fixture** | intubado VCV/PEEP 8/VC 420 em 01/07/2026 08:00 → extubado em 02/07/2026 10:00 → reintubado PCV/FiO2 40 em 03/07/2026 09:00 (sem PEEP/VC novos) |
+| **Expected** | Episódio novo com `modo=PCV`, `fio2=40`; `peep` e `vc_ml` ausentes |
+| **Observed baseline** (sha `56faa850...`) | `{modo:"PCV", fio2:"40", peep:"8", vc_ml:"420"}` — PEEP/VC vazaram |
+| **Observed reference** (sha `6c8e823b...`) | `{modo:"PCV", fio2:"40"}` — limpo, sem herança |
+| **Observed candidate** (sha `f8bf499b...`) | `{modo:"PCV", fio2:"40", peep:"8", vc_ml:"420"}` — PEEP/VC vazaram (idêntico à baseline) |
+| **PASS/FAIL** | baseline **FAIL** · reference **PASS** · candidate **FAIL** |
+| **Classificação** | `BASELINE_BUG_REVEALED` |
+| **Severidade** | Bloqueante (documenta parâmetro ventilatório de episódio já encerrado como se fosse atual) |
+| **Confiança** | Alta — mecanismo causal identificado por leitura de código, não só por diferença de output |
+| **Evidência** | `DYNAMIC_E2E_EVIDENCE` (mais evidência estática de apoio: comentário `// fix P0-06 (26/07/2026)` em `resolveVentilatorio()` da referência, ausente em baseline/candidata) |
+| **Console/page errors** | Nenhum nos três artefatos |
+| **Conclusão** | Confirmado dinamicamente: a auditoria externa estava certa. A referência restringe candidatos de cada campo ao episódio vigente (`lastExtubIdx` → `episodioAtual = sorted.slice(lastExtubIdx+1)`); baseline e candidata resolvem por precedência sobre o array inteiro, sem essa fronteira. Não é regressão da consolidação (candidata = baseline), é uma correção conhecida e disponível que nunca foi portada. |
 
-**Observado:**
-- Baseline: `{"modo":"PCV","fio2":"40","peep":"8","vc_ml":"420"}` — PEEP e VC do episódio encerrado vazaram. **FAIL.**
-- Referência: episódio novo limpo, sem PEEP/VC herdados. **PASS.**
-- Candidata atual: mesmo resultado da baseline — PEEP e VC vazaram. **FAIL.**
+---
 
-**Mecanismo confirmado por leitura de código:** a referência contém um comentário explícito `// fix P0-06 (26/07/2026)` em `resolveVentilatorio()` (linha ~1581) que ordena os eventos cronologicamente e restringe os candidatos de cada campo ao **episódio vigente** (eventos estritamente posteriores à última extubação/retirada). A baseline e a candidata atual resolvem cada campo por precedência entre **todos** os eventos do array inteiro, sem noção de episódio — exatamente o bug que a referência corrigiu.
+## P0-02 — VM ativa × extubado no mesmo contexto temporal
 
-**Classificação:** o bug bloqueante existe identicamente em baseline e candidata → **não é uma regressão introduzida pela consolidação v3.4.1** (nada piorou), mas confirma que **o fix de episódio ventilatório da referência (fix P0-06) nunca foi portado** para a linha 3.3.12-P1/3.4.1, apesar de `reports/IMPLEMENTATION_PLAN.md` (Etapa 4) e `reports/REGRESSION_RISKS.md` (R-02) já preverem esse port como obrigatório. Bloqueante, confirmado reproduzível agora.
+Duas subvariantes — a auditoria externa pediu para não assumir que o bug histórico persiste igual, e a execução confirma que a situação é mais matizada do que uma única fixture revelaria.
 
-## P0-02 — empate ventilatório sem conflito bloqueante
+### P0-02a — formulação simétrica ("intubado" × "extubado", controle)
 
-Duas sub-variantes, porque a reprodução literal do cenário original revelou uma divergência que precisa ficar registrada, não escondida:
+| Campo | Valor |
+|---|---|
+| **Fixture** | dois eventos, mesma data/hora/ordem (05/07/2026 14:00), status "intubado" vs "extubado" |
+| **Expected** | Conflito registrado em `engine.conflitos` **e** propagado até `buildCriticalPendencies()` → `wouldBlockCopy=true` |
+| **Observed baseline** | conflito: `"Conflito ventilatório: evento \"extubado\"... empatou com evento \"intubado\"..."`; `wouldBlockCopy=true` (via pendência "Existe conflito de estado não resolvido") |
+| **Observed reference** | conflito: `"⛔ Conflito ventilatório bloqueante: há menções empatadas..."`; `wouldBlockCopy=true` (via pendência "Existe alerta crítico bloqueante") |
+| **Observed candidate** | idêntico à baseline; `wouldBlockCopy=true` |
+| **PASS/FAIL** | **PASS nos três** |
+| **Classificação** | `EXPECTED_CHANGE` |
+| **Severidade** | N/A (comportamento correto) |
+| **Confiança** | Alta |
+| **Evidência** | `DYNAMIC_E2E_EVIDENCE` |
+| **Console/page errors** | Nenhum |
+| **Conclusão** | O mecanismo de empate real (`cmp===0` em `comparaPrecedencia`) funciona e efetivamente bloqueia a cópia nos três artefatos quando a formulação é simétrica. **Isso não reproduz a alegação histórica de que a baseline falha aqui** — não foi possível reconciliar essa divergência porque `test_rechdocs_v340.mjs` (usado no relatório de 02/08) nunca foi commitado (busca em `git log --all` / `git rev-list --all` sem resultado). Fica `UNRESOLVED` apenas quanto à **causa da divergência com o relatório histórico**, não quanto ao comportamento atual, que está bem estabelecido. |
 
-### P0-02a (controle) — formulação simétrica
+### P0-02b — formulação assimétrica ("VM ativa" × "extubado", achado novo)
 
-Mesma fixture citada no relatório de origem: "intubado" × "extubado", mesma data/hora/ordem. **Resultado: PASS nos três artefatos** — todos geram o conflito ventilatório corretamente. Isso **não reproduz** a alegação original de que a baseline falha aqui. Hipótese mais provável: o relatório de 02/08 usou uma formulação diferente da que consta em sua própria descrição textual, ou testou por outro caminho (ex.: via `test_rechdocs_v340.mjs`, que não está disponível para inspeção — nunca foi commitado, buscado em todo o histórico git sem sucesso). Sem esse arquivo, não é possível reconciliar a diferença — fica **UNRESOLVED quanto à causa da divergência**, mas o comportamento atual em si está bem estabelecido: nos três artefatos, o mecanismo de empate correto funciona para redações simétricas.
+| Campo | Valor |
+|---|---|
+| **Fixture** | dois eventos, mesma data/hora/ordem, status "VM ativa" vs "extubado" |
+| **Expected** | Mesmo padrão do P0-02a: conflito registrado e cópia bloqueada |
+| **Observed baseline** | `conflitos=[]`; estado resolvido para `{}` (equivalente a extubado, sem sinalização); `pendencies=[]`, `wouldBlockCopy=false` |
+| **Observed reference** | idêntico à baseline |
+| **Observed candidate** | idêntico à baseline |
+| **PASS/FAIL** | **FAIL nos três** |
+| **Classificação** | `REFERENCE_BUG_REVEALED` |
+| **Severidade** | Bloqueante — decide silenciosamente entre dois estados clínicos mutuamente exclusivos, sem qualquer sinalização, e **não bloqueia a cópia** (confirmado via `buildCriticalPendencies`, com pendências de outras origens deliberadamente neutralizadas na fixture para isolar este efeito especificamente) |
+| **Confiança** | Alta — mecanismo causal identificado: `comparaPrecedencia()` desempata por `EXECUTED_VERBS` (lista de radicais como `extubad`, `intubad`); "VM ativa" não bate em nenhum radical, "extubado" bate — a comparação resolve decisivamente a favor de "extubado" antes de alcançar o critério de empate real, então `cmp!==0` e o bloco de detecção de conflito (que só dispara quando `cmp===0`) nunca executa |
+| **Evidência** | `DYNAMIC_E2E_EVIDENCE` |
+| **Console/page errors** | Nenhum |
+| **Conclusão** | **Achado novo, sem ID prévio em `REGRESSION_RISKS.md`.** Presente idêntico nos três artefatos, incluindo a referência (fonte de correções deliberadas conhecidas para outros casos) — não é regressão da candidata. Reservado o ID **R-17** para reconciliação futura. |
 
-### P0-02b (achado novo) — formulação assimétrica
-
-Fixture: "VM ativa" × "extubado", mesma data/hora/ordem. **Resultado: FAIL nos três artefatos** (baseline, referência e candidata) — nenhum conflito é registrado; o motor resolve silenciosamente a favor de "extubado" (estado ventilatório fica vazio).
-
-**Mecanismo confirmado por leitura de código:** `comparaPrecedencia()` (idêntica em baseline e referência nesse trecho) desempata por "ação executada" usando `EXECUTED_VERBS`, uma lista de radicais (`'intubad'`, `'extubad'`, etc.). "Extubado" bate no radical `extubad`; "VM ativa" não bate em nenhum radical da lista. Isso quebra a simetria da comparação **antes** de ela chegar ao critério de ordem/empate real — o lado que bate em `EXECUTED_VERBS` vence deterministicamente, mesmo quando semanticamente as duas menções são mutuamente exclusivas e deveriam gerar conflito.
-
-**Classificação:** bug bloqueante **não documentado em nenhum relatório anterior**, presente identicamente nos três artefatos, incluindo a referência que corrige o P0-01. Não é regressão da candidata (comportamento idêntico à baseline e à referência) — é uma lacuna pré-existente na lógica de desempate por verbo, que se manifesta sempre que a fonte documental usa uma formulação de estado ativo que não contém um dos radicais de `EXECUTED_VERBS` (ex.: "VM ativa", "em ventilação mecânica", "suporte ventilatório mantido" — nenhum desses bate em `intubad`).
+---
 
 ## P0-03 — política de cópia com override auditável
 
-**Verificado:** presença de mecanismo de bloqueio (`COPY_BLOCKED`/`setCopyBlocked`) e de qualquer afordância dedicada de override ("Copiar mesmo assim" ou equivalente, distinta do fluxo de confirmação de envio de PHI à API).
+Ver `reports/COPY_POLICY_CONTRACT.md` para a separação entre o que está decidido (5 itens testados) e o que está `UNRESOLVED` (não testado, para não inventar regra).
 
-- Baseline: tem bloqueio absoluto (`COPY_BLOCKED`), sem nenhum override. **FAIL** (falta regra 4/5).
-- Referência: **não tem nenhum mecanismo de bloqueio** — `copiar()` sempre copia, sem checar pendências. **FAIL** (falta regra 1/2/3 inteiras — pior que a baseline nesse quesito específico, confirma R-01 de `REGRESSION_RISKS.md`).
-- Candidata atual: mesmo estado da baseline — bloqueio absoluto, sem override. **FAIL.**
+| Campo | Valor |
+|---|---|
+| **Fixture** | inspeção estática do HTML (presença de mecanismo de bloqueio e de afordância de override) + execução dinâmica de `copiar()` com `COPY_BLOCKED=true` forçado, clipboard stubado localmente |
+| **Expected** | Itens 1–5 do contrato: bloqueio inicial efetivo, pendência visível, override dedicado, confirmação explícita, auditabilidade |
+| **Observed baseline** | item1=true, item2=true (`"Cópia bloqueada: resolva as pendências críticas..."`), item3=false, item4/5=não verificáveis |
+| **Observed reference** | item1=**false** (`hasBlockMechanism=false`) — não tem `COPY_BLOCKED`/`setCopyBlocked` nenhum; `copiar()` sempre executa e tentaria escrever no clipboard (`writes=[""]`); item2=false (`statusText=""`); item3=false |
+| **Observed candidate** | idêntico à baseline: item1=true, item2=true, item3=false |
+| **PASS/FAIL** | **FAIL nos três** (por motivos diferentes) |
+| **Classificação** | `EXPECTED_CHANGE` (política de produto ainda não implementada — não é bug comportamental) |
+| **Severidade** | N/A para a classificação de bug; porém a lacuna da **referência** (item 1 ausente) é uma lacuna mais ampla que a falta de override — nenhuma pendência bloqueia cópia ali, o que é pior que bloqueio absoluto |
+| **Confiança** | Alta (inspeção direta de código + execução) |
+| **Evidência** | `STATIC_CODE_EVIDENCE` complementada por `DYNAMIC_E2E_EVIDENCE` (execução real de `copiar()`) |
+| **Console/page errors** | Nenhum |
+| **Conclusão** | Confirmado: baseline e candidata têm bloqueio absoluto sem override (item 3 ausente = itens 4/5 não verificáveis por decorrência, não testados como se fossem falha independente). A referência não tem nem o bloqueio (pior nesse quesito específico — confirma R-01 de `REGRESSION_RISKS.md`). Nenhum dos três implementa a política decidida (`ALERT → CONFIRMATION → EXPLICIT OVERRIDE → AUDIT`). Tratado como funcionalidade pendente, não como regressão. |
 
-**Classificação:** `EXPECTED_CHANGE` — não é um bug comportamental, é uma política de produto ainda não implementada em nenhum artefato. Não deve ser tratado como regressão nem como "UI quebrada"; é trabalho de implementação pendente, com a regra já especificada (alertar → confirmar → permitir override → registrar).
+---
 
-## Resumo para reconciliação dos relatórios oficiais
+## CI-05 — compactação cumulativa de exames (característica adicional, não-P0)
 
-Isto ainda não foi propagado para `reports/REGRESSION_RISKS.md`, `reports/CHANGE_IMPACT.md` ou `reports/TEST_RESULTS.md` — por decisão explícita, a reconciliação só acontece depois deste registro de evidência. Pontos que a reconciliação precisará endereçar:
+Não reabre a hipótese de whitelist Hb/Ht (já verificada e descartada). Casos mínimos testados: (1) duplicata exata, (2) mesmo analito/resultado diferente, (3) datas diferentes, (4) horários diferentes, (5) unidades diferentes, (6) imutabilidade de `d.exames`.
 
-1. **R-02** (`REGRESSION_RISKS.md`) já previa o mecanismo de P0-01; agora há confirmação reproduzível de que o bug persiste na candidata atual, com causa raiz identificada (`resolveVentilatorio` sem noção de episódio) e uma correção de referência disponível para port seletivo (fix P0-06 da v3.4.0).
-2. **P0-02b é um risco novo**, sem ID em `REGRESSION_RISKS.md` — precisa de um ID novo (sugestão: R-17) antes da reconciliação, já que não é coberto por nenhum dos R-01–R-16 existentes.
-3. **P0-02a vs. relatório de 02/08** — divergência não resolvida quanto à causa; registrar como nota metodológica, não como contradição a "corrigir" silenciosamente.
-4. **P0-03** precisa de entrada própria em `CHANGE_IMPACT.md` como funcionalidade a implementar (política de override), não como correção de bug.
-5. **Nenhum destes três casos ainda cobre** os demais itens do "Gate mínimo para RC clínica" listados no relatório de 02/08 — este documento valida apenas P0-01/P0-02/P0-03, não substitui a suíte completa de characterization.
+| Campo | Valor |
+|---|---|
+| **Observed baseline** | `buildExamesCompactos()` não existe — **N/A**, esperado (função não portada da referência para a linhagem baseline) |
+| **Observed reference** | Existe função de mesmo nome, mas **implementação estruturalmente diferente**: sem unidade no texto, sem deduplicação nenhuma, agrupamento só por `tipo` (não por `tipo`+`data`). Falha nos 5 casos de conteúdo por incompatibilidade de contrato, não por defeito segundo seus próprios critérios |
+| **Observed candidate** | Passa nos 6 casos — dedupe exata funcionando (`Hb` duplicado → 1 ocorrência), preserva resultados/datas/horários/unidades distintos, `d.exames` inalterado após a chamada (`unchanged=true`, `sameReference=true`) |
+| **PASS/FAIL** | baseline N/A · reference FAIL (contrato incompatível) · candidate **PASS** |
+| **Classificação** | `EXPECTED_CHANGE` |
+| **Evidência** | `DYNAMIC_E2E_EVIDENCE` |
+| **Console/page errors** | Nenhum |
+| **Conclusão** | A candidata confirma dinamicamente os 6 casos mínimos descritos em `reports/CHANGE_IMPACT.md` (CI-05). Achado adicional: `buildExamesCompactos()` da candidata **não é um port direto** da função homônima da referência — é uma implementação própria mais elaborada. Isso deveria ser refletido em `FUNCTION_COMPARISON.md`/`CHANGE_IMPACT.md` na reconciliação. |
 
-## Erros de execução
+---
 
-Nenhum `pageerror`/`console.error` foi observado em nenhuma das 9 execuções (3 casos × 3 artefatos). Ver `tests/characterization/reports/p0_run_result.json` para o payload bruto completo, incluindo estados ventilatórios e listas de conflitos por artefato.
+## Nota de rigor metodológico
+
+As fixtures originalmente usavam datas em formato ISO (`2026-07-01`), que `parseDateOnlyScore()` não reconhece (só aceita `DD/MM/AAAA` ou `DD-MM-AAAA`). Isso foi detectado e corrigido **antes** de qualquer resultado ser reportado — as fixtures foram reescritas com datas no formato `DD/MM/AAAA`, e a suíte inteira foi reexecutada. Os vereditos PASS/FAIL não mudaram, mas a evidência ficou genuinamente mais forte: com o formato correto, `buildExamesCompactos()` agora agrupa de fato por data/hora reais (confirmado no texto observado: `"LAB [01/07/2026 08:00]..."`, `"LAB [03/07/2026 08:00]..."` em grupos separados), em vez de todos os exames caírem acidentalmente no bucket "SEM DATA INFORMADA" e passarem os casos 3/4 por coincidência de contagem, não por validação real de agrupamento.
+
+## Teste de preview editável (adicional pedido)
+
+Não implementado nesta rodada — exigiria simular o fluxo completo de geração (que depende de `fetch()` a provedor de IA) ou reconstruir manualmente o estado pós-geração via DOM antes de testar a edição/cópia/clipboard, trabalho substancialmente maior que os itens P0. Registrado como próxima fixture (`tests/characterization/fixtures/preview_edit_clipboard_integrity.mjs`, ainda não criado) em vez de atrasar a entrega deste relatório.
+
+## Itens que precisarão de reconciliação (ainda não executada)
+
+1. **R-02** (`REGRESSION_RISKS.md`) — confirmar como já cobrindo P0-01; adicionar causa raiz e correção de referência disponível (fix P0-06).
+2. **R-17 (novo)** — abrir para P0-02b; sem ID prévio.
+3. **P0-02a vs. relatório de 02/08** — registrar divergência como nota metodológica (fonte original irreprodutível, `test_rechdocs_v340.mjs` nunca commitado).
+4. **P0-03** — nova entrada em `CHANGE_IMPACT.md` como funcionalidade a implementar, referenciando `COPY_POLICY_CONTRACT.md`.
+5. **CI-05** — nota em `FUNCTION_COMPARISON.md`/`CHANGE_IMPACT.md` de que `buildExamesCompactos()` não é port direto da referência.
+6. Nenhum destes cobre a lista completa "Gate mínimo para RC clínica" do relatório de 02/08 — esta rodada valida apenas P0-01/P0-02/P0-03/CI-05.
