@@ -1,0 +1,205 @@
+{
+  "generatedAt": "2026-08-12T07:58:15.939Z",
+  "artifactMeta": {
+    "baseline": {
+      "key": "baseline",
+      "label": "Baseline v3.3.12-P1 (congelada)",
+      "path": "baseline/rech_docs_v3_3_12_P1.html",
+      "sha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667",
+      "bytes": 205250
+    },
+    "reference": {
+      "key": "reference",
+      "label": "Referencia v3.4.0",
+      "path": "reference/RechDocs_v3.4.0_reference.html",
+      "sha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073",
+      "bytes": 187738
+    },
+    "candidate": {
+      "key": "candidate",
+      "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
+      "path": "output/RechDocs_v3.4.1.html",
+      "sha256": "f8bf499b1b8483f80457afdb32248ee7411abce54c0cc2c4ca30fd4b832814fa",
+      "bytes": 220845
+    }
+  },
+  "matrix": {
+    "P0-01": {
+      "baseline": {
+        "id": "P0-01",
+        "description": "Vazamento de parametros ventilatorios entre episodios (extubacao/reintubacao)",
+        "pass": false,
+        "failures": [
+          "PEEP do episodio encerrado vazou para o estado atual: peep=\"8\" (esperado: ausente).",
+          "VC do episodio encerrado vazou para o estado atual: vc_ml=\"420\" (esperado: ausente)."
+        ],
+        "observed": {
+          "ventilatorio": {
+            "modo": "PCV",
+            "fio2": "40",
+            "peep": "8",
+            "vc_ml": "420"
+          },
+          "conflitos": [],
+          "pageErrors": [],
+          "consoleErrors": []
+        }
+      },
+      "reference": {
+        "id": "P0-01",
+        "description": "Vazamento de parametros ventilatorios entre episodios (extubacao/reintubacao)",
+        "pass": true,
+        "failures": [],
+        "observed": {
+          "ventilatorio": {
+            "modo": "PCV",
+            "fio2": "40"
+          },
+          "conflitos": [],
+          "pageErrors": [],
+          "consoleErrors": []
+        }
+      },
+      "candidate": {
+        "id": "P0-01",
+        "description": "Vazamento de parametros ventilatorios entre episodios (extubacao/reintubacao)",
+        "pass": false,
+        "failures": [
+          "PEEP do episodio encerrado vazou para o estado atual: peep=\"8\" (esperado: ausente).",
+          "VC do episodio encerrado vazou para o estado atual: vc_ml=\"420\" (esperado: ausente)."
+        ],
+        "observed": {
+          "ventilatorio": {
+            "modo": "PCV",
+            "fio2": "40",
+            "peep": "8",
+            "vc_ml": "420"
+          },
+          "conflitos": [],
+          "pageErrors": [],
+          "consoleErrors": []
+        }
+      }
+    },
+    "P0-02": {
+      "baseline": {
+        "id": "P0-02",
+        "description": "Empate ventilatorio nao gera conflito bloqueante (simetrico=controle, assimetrico=achado novo)",
+        "pass": false,
+        "failures": [
+          "P0-02b (formulacao assimetrica \"VM ativa\" x \"extubado\") — nenhum conflito registrado apesar do empate clinico. conflitos=[]. Estado resolvido silenciosamente: {}."
+        ],
+        "observed": {
+          "symmetric": {
+            "conflitos": [
+              "Conflito ventilatório: evento \"extubado\" (2026-07-05) empatou com evento \"intubado\" (2026-07-05). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente."
+            ],
+            "ventilatorio": {
+              "modo": "PCV"
+            }
+          },
+          "asymmetric": {
+            "conflitos": [],
+            "ventilatorio": {}
+          },
+          "pageErrors": [],
+          "consoleErrors": []
+        }
+      },
+      "reference": {
+        "id": "P0-02",
+        "description": "Empate ventilatorio nao gera conflito bloqueante (simetrico=controle, assimetrico=achado novo)",
+        "pass": false,
+        "failures": [
+          "P0-02b (formulacao assimetrica \"VM ativa\" x \"extubado\") — nenhum conflito registrado apesar do empate clinico. conflitos=[]. Estado resolvido silenciosamente: {}."
+        ],
+        "observed": {
+          "symmetric": {
+            "conflitos": [
+              "⛔ Conflito ventilatório bloqueante: há menções empatadas de VM ativa e extubação/retirada, sem cronologia suficiente para definir o estado atual. Mantido o primeiro evento apenas para exibição — CONFIRME MANUALMENTE antes de assinar.",
+              "VM: estado ativo determinado, mas nenhum evento ventilatório cronologicamente posterior à última extubação foi encontrado — revisar cronologia manualmente."
+            ],
+            "ventilatorio": {
+              "modo": "PCV"
+            }
+          },
+          "asymmetric": {
+            "conflitos": [],
+            "ventilatorio": {}
+          },
+          "pageErrors": [],
+          "consoleErrors": []
+        }
+      },
+      "candidate": {
+        "id": "P0-02",
+        "description": "Empate ventilatorio nao gera conflito bloqueante (simetrico=controle, assimetrico=achado novo)",
+        "pass": false,
+        "failures": [
+          "P0-02b (formulacao assimetrica \"VM ativa\" x \"extubado\") — nenhum conflito registrado apesar do empate clinico. conflitos=[]. Estado resolvido silenciosamente: {}."
+        ],
+        "observed": {
+          "symmetric": {
+            "conflitos": [
+              "Conflito ventilatório: evento \"extubado\" (2026-07-05) empatou com evento \"intubado\" (2026-07-05). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente."
+            ],
+            "ventilatorio": {
+              "modo": "PCV"
+            }
+          },
+          "asymmetric": {
+            "conflitos": [],
+            "ventilatorio": {}
+          },
+          "pageErrors": [],
+          "consoleErrors": []
+        }
+      }
+    },
+    "P0-03": {
+      "baseline": {
+        "id": "P0-03",
+        "description": "Politica de copia com confirmacao + override auditavel (\"Copiar mesmo assim\")",
+        "pass": false,
+        "failures": [
+          "Nao existe nenhuma afordancia dedicada de override de copia (\"Copiar mesmo assim\" ou equivalente) distinta do fluxo de confirmacao de envio de PHI a API externa.",
+          "Sem override dedicado, nao ha como verificar se a acao forcada fica registrada/auditavel durante a sessao (regra 5)."
+        ],
+        "observed": {
+          "hasBlockMechanism": true,
+          "hasOverrideAffordance": false,
+          "hasDedicatedOverrideId": false
+        }
+      },
+      "reference": {
+        "id": "P0-03",
+        "description": "Politica de copia com confirmacao + override auditavel (\"Copiar mesmo assim\")",
+        "pass": false,
+        "failures": [
+          "Nao existe mecanismo de bloqueio de copia por pendencia (nem COPY_BLOCKED nem setCopyBlocked) — pendencias podem ser copiadas sem alerta algum.",
+          "Nao existe nenhuma afordancia dedicada de override de copia (\"Copiar mesmo assim\" ou equivalente) distinta do fluxo de confirmacao de envio de PHI a API externa.",
+          "Sem override dedicado, nao ha como verificar se a acao forcada fica registrada/auditavel durante a sessao (regra 5)."
+        ],
+        "observed": {
+          "hasBlockMechanism": false,
+          "hasOverrideAffordance": false,
+          "hasDedicatedOverrideId": false
+        }
+      },
+      "candidate": {
+        "id": "P0-03",
+        "description": "Politica de copia com confirmacao + override auditavel (\"Copiar mesmo assim\")",
+        "pass": false,
+        "failures": [
+          "Nao existe nenhuma afordancia dedicada de override de copia (\"Copiar mesmo assim\" ou equivalente) distinta do fluxo de confirmacao de envio de PHI a API externa.",
+          "Sem override dedicado, nao ha como verificar se a acao forcada fica registrada/auditavel durante a sessao (regra 5)."
+        ],
+        "observed": {
+          "hasBlockMechanism": true,
+          "hasOverrideAffordance": false,
+          "hasDedicatedOverrideId": false
+        }
+      }
+    }
+  }
+}
