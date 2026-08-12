@@ -7,9 +7,9 @@
 
 | Arquivo alvo | Comando | Resultado | Observações |
 |---|---|---|---|
-| `baseline/rech_docs_v3_3_12_P1.html` | `python tests/static_audit.py baseline/rech_docs_v3_3_12_P1.html` | pendente de execução | ver `reports/BASELINE_STATIC_AUDIT.txt` para execução anterior |
-| `reference/RechDocs_v3.4.0_reference.html` | `python tests/static_audit.py reference/RechDocs_v3.4.0_reference.html` | pendente de execução | ver `reports/REFERENCE_STATIC_AUDIT.txt` para execução anterior |
-| `output/RechDocs_v3.4.1.html` | `python tests/static_audit.py output/RechDocs_v3.4.1.html` | **pendente de execução** | executar antes de declarar versão final |
+| `baseline/rech_docs_v3_3_12_P1.html` | `python3 tests/static_audit.py baseline/rech_docs_v3_3_12_P1.html` | PASSOU (60 IDs, 0 duplicados, 1 script inline, JS válido via `node --check`) | ver `reports/BASELINE_STATIC_AUDIT.txt`; reexecutado em 2026-08-12 |
+| `reference/RechDocs_v3.4.0_reference.html` | `python3 tests/static_audit.py reference/RechDocs_v3.4.0_reference.html` | PASSOU (60 IDs, 0 duplicados, 1 script inline, JS válido via `node --check`) | ver `reports/REFERENCE_STATIC_AUDIT.txt`; reexecutado em 2026-08-12 |
+| `output/RechDocs_v3.4.1.html` | `python3 tests/static_audit.py output/RechDocs_v3.4.1.html` | PASSOU (65 IDs, 0 duplicados, 1 script inline, JS válido via `node --check`) | ver `reports/OUTPUT_STATIC_AUDIT.txt`; executado em 2026-08-12 |
 
 ## Suítes de caracterização / clínicas
 
@@ -52,6 +52,8 @@
 
 ## Limitações conhecidas
 
-- Ambiente de execução para testes `.cjs`/Node não confirmado neste registro.
+- A auditoria estática cobre apenas IDs duplicados, padrões perigosos (`eval`, `new Function`, `document.write`) e validade sintática do JS via `node --check`. **Não valida nenhum comportamento clínico** — os 16 riscos de regressão e as 5 funcionalidades recentes listadas acima seguem pendentes e exigem testes de caracterização/clínicos dedicados antes de qualquer declaração de segurança clínica (regra 10 de `AGENTS.md`).
+- Ambiente Node confirmado disponível nesta execução (`/opt/node22/bin/node`), portanto o teste sintático de JS foi executado para os três arquivos (não apenas verificado como ausente).
 - Dependências de teste vendorizadas/aprovadas ainda não definidas (ver Etapa 1.4 de `reports/IMPLEMENTATION_PLAN.md`).
+- Suítes `.cjs` de caracterização/clínicas referenciadas em `IMPLEMENTATION_PLAN.md` ainda não localizadas no repositório — precisam ser migradas ou recriadas.
 - Decisões humanas pendentes listadas em `reports/REGRESSION_RISKS.md` bloqueiam a definição de critérios de aceite para alguns testes (ex.: deduplicação de exames, definição de "exportação").
