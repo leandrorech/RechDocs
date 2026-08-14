@@ -313,6 +313,7 @@ textarea:focus,.apikey-input:focus{outline:none;border-color:var(--accent)}
     <div style="display:flex;gap:6px">
       <button class="btn-copy" onclick="imprimirDocumento()">Imprimir / PDF</button>
       <button class="btn-copy" id="btn-copy" onclick="copiar()">Copiar tudo</button>
+      <button class="btn-copy" id="btn-copiar-mesmo-assim" onclick="copiarComOverride()" style="display:none">Copiar mesmo assim</button>
     </div>
   </div>
   <pre class="output-body" id="output-body"></pre>
@@ -900,6 +901,12 @@ const DEFAULT_DICT={
 let MODE='admissao', STYLE='usual', PREFILL_MODE=false;
 const items=[]; const thumbUrls={}; const MAX_IMGS=10;
 let COPY_BLOCKED=false;
+// P0-03: registro de override de cópia (ALERTA -> BLOQUEIO -> "Copiar mesmo assim" -> CONFIRMAÇÃO ->
+// AUDIT LOG -> CÓPIA, ver reports/COPY_POLICY_CONTRACT.md). Cada entrada é uma cópia individual feita
+// apesar de pendência crítica; nunca é lida por setCopyBlocked/copiar() — o bloqueio padrão nunca é
+// desativado por causa de um override anterior, e cada nova tentativa de cópia normal volta a checar
+// COPY_BLOCKED normalmente. Memória de sessão; limpo em novo caso/encerrar sessão.
+const COPY_OVERRIDE_LOG=[];
 let PREFILL_STATE={active:false,snapshotText:'',traceItems:[],baseBlocked:false,dirty:false,reviewed:false};
 // Conta conversões de PDF em andamento — pdfToImages() é assíncrona mas era chamada sem await
 // dentro de addFiles() (loop síncrono), permitindo clicar "Gerar" com a conversão ainda incompleta
@@ -3070,6 +3077,10 @@ function setCopyBlocked(blocked){
     btn.disabled=COPY_BLOCKED;
     btn.title=COPY_BLOCKED?'Cópia bloqueada: resolva as pendências críticas acima.':'';
   }
+  // "Copiar mesmo assim" só existe enquanto há bloqueio ativo — sem pendência não há o que
+  // sobrepor (copiar() já funciona normalmente nesse caso).
+  const overrideBtn=document.getElementById('btn-copiar-mesmo-assim');
+  if(overrideBtn) overrideBtn.style.display=COPY_BLOCKED?'':'none';
 }
 function setPrefillStateMessage(message,type='warning'){
   const el=document.getElementById('prefill-state');
@@ -3590,6 +3601,8 @@ function reiniciarTudo(){
   document.getElementById('warn-card').className='warn-card';
   document.getElementById('pending-card').className='pending-card';
   document.getElementById('audit-card').className='audit-card';
+  document.getElementById('audit-list').textContent='';
+  COPY_OVERRIDE_LOG.length=0;
   document.getElementById('output-body').textContent='';
   resetTraceReview();
   resetPreEvolutionState();
@@ -3622,6 +3635,44 @@ function copiar(){
   (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject(new Error('Clipboard indisponível'))).then(()=>{
     const btn=document.getElementById('btn-copy'); btn.textContent='✓ Copiado!'; btn.classList.add('copied');
     setTimeout(()=>{btn.textContent='Copiar tudo';btn.classList.remove('copied');},2000);
+  }).catch(()=>{ setStatus('error','Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.'); });
+}
+// P0-03: motivo exibido ao usuário no momento do override — reaproveita o texto de pendências já
+// mostrado no pending-card (mesma fonte que bloqueou a cópia); não reclassifica nem inventa motivo.
+function currentCopyBlockReason(){
+  const pendList=document.getElementById('pending-list');
+  const pendText=pendList?cleanStr(pendList.textContent):'';
+  if(pendText)return pendText;
+  const statusMsg=document.getElementById('status-msg');
+  const statusText=statusMsg?cleanStr(statusMsg.textContent):'';
+  return statusText||'Pendência crítica não especificada.';
+}
+// P0-03 (reports/COPY_POLICY_CONTRACT.md): ALERTA -> BLOQUEIO -> "Copiar mesmo assim" ->
+// CONFIRMAÇÃO EXPLÍCITA -> AUDIT LOG -> CÓPIA. Sem pendência ativa, equivale a copiar() normal (não
+// há o que sobrepor). Com pendência: pede confirmação explícita e inequívoca antes de copiar; nunca
+// desativa COPY_BLOCKED — o override vale só para esta cópia específica, e a próxima tentativa
+// (normal ou via este mesmo botão) volta a exigir nova confirmação. Nenhuma autorização é persistida
+// (nem em localStorage/sessionStorage, nem em variável que sobreviva além desta chamada).
+function copiarComOverride(){
+  if(!COPY_BLOCKED){ copiar(); return; }
+  const motivo=currentCopyBlockReason();
+  const confirmado=confirm('Há pendência(s) crítica(s) não resolvida(s):\n\n'+motivo+'\n\nCopiar mesmo assim registra esta decisão no log de auditoria da sessão e vale apenas para esta cópia — a próxima tentativa volta a ficar bloqueada.\n\nConfirma que revisou e deseja copiar mesmo assim?');
+  if(!confirmado){
+    setStatus('error','Override de cópia cancelado. O bloqueio permanece.');
+    return;
+  }
+  const txt=document.getElementById('output-body').textContent;
+  (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject(new Error('Clipboard indisponível'))).then(()=>{
+    const entry={timestamp:new Date().toISOString(),motivo};
+    COPY_OVERRIDE_LOG.push(entry);
+    const auditList=document.getElementById('audit-list');
+    const auditCard=document.getElementById('audit-card');
+    const linha=`⚠ Override de cópia em ${entry.timestamp} — pendência(s) ignorada(s) por decisão humana: ${entry.motivo}`;
+    if(auditList) auditList.textContent=auditList.textContent?auditList.textContent+'\n'+linha:linha;
+    if(auditCard) auditCard.className='audit-card show';
+    const btn=document.getElementById('btn-copiar-mesmo-assim');
+    if(btn){ const original='Copiar mesmo assim'; btn.textContent='✓ Copiado (override)'; setTimeout(()=>{btn.textContent=original;},2000); }
+    setStatus('success','Documento copiado mesmo com pendências — override registrado no log de auditoria desta sessão.');
   }).catch(()=>{ setStatus('error','Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.'); });
 }
 // Interface mínima para a suíte local de regressão. Não contém dados de paciente nem altera o

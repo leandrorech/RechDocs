@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-14T19:36:39.709Z",
+  "generatedAt": "2026-08-14T23:43:21.475Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -19,8 +19,8 @@
       "key": "candidate",
       "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
       "path": "output/RechDocs_v3.4.1.html",
-      "sha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d",
-      "bytes": 224847
+      "sha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356",
+      "bytes": 228776
     }
   },
   "results": {
@@ -78,7 +78,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d"
+        "artifactSha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356"
       }
     },
     "P0-02": {
@@ -220,7 +220,7 @@
             "consoleErrors": []
           }
         },
-        "artifactSha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d"
+        "artifactSha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356"
       }
     },
     "P0-03": {
@@ -246,12 +246,32 @@
             "pageErrors": [],
             "consoleErrors": []
           },
+          "unblockedFlow": {
+            "writes": [
+              "TEXTO CLINICO SEM PENDENCIA (teste P0-03)"
+            ],
+            "threw": null,
+            "overrideVisible": null,
+            "pageErrors": [],
+            "consoleErrors": []
+          },
+          "overrideFlow": {
+            "supported": false
+          },
           "items": {
             "item1": true,
             "item2": true,
             "item3": false,
-            "item4": false,
-            "item5": false
+            "item4": null,
+            "item5": null
+          },
+          "tests": {
+            "test1": true,
+            "test3": null,
+            "test4": null,
+            "test5": null,
+            "test6": null,
+            "test7": null
           }
         },
         "artifactSha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667"
@@ -259,7 +279,7 @@
       "reference": {
         "pass": false,
         "failures": [
-          "Item 1 (bloqueio inicial efetivo) nao confirmado: hasBlockMechanism=false, writes=[\"\"], threw=null.",
+          "Item 1 / Teste 2 (bloqueio inicial efetivo) nao confirmado: hasBlockMechanism=false, writes=[\"\"], threw=null.",
           "Item 2 (pendencia visivel) nao confirmado: statusText=\"\".",
           "Item 3 (afordancia dedicada \"Copiar mesmo assim\") ausente — nenhum id/rotulo de override de copia encontrado no HTML.",
           "Itens 4 e 5 (confirmacao explicita / auditabilidade do override) nao verificaveis: dependem do item 3 existir primeiro."
@@ -282,27 +302,44 @@
             "pageErrors": [],
             "consoleErrors": []
           },
+          "unblockedFlow": {
+            "writes": [
+              "TEXTO CLINICO SEM PENDENCIA (teste P0-03)"
+            ],
+            "threw": null,
+            "overrideVisible": null,
+            "pageErrors": [],
+            "consoleErrors": []
+          },
+          "overrideFlow": {
+            "supported": false
+          },
           "items": {
             "item1": false,
             "item2": false,
             "item3": false,
-            "item4": false,
-            "item5": false
+            "item4": null,
+            "item5": null
+          },
+          "tests": {
+            "test1": true,
+            "test3": null,
+            "test4": null,
+            "test5": null,
+            "test6": null,
+            "test7": null
           }
         },
         "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
       },
       "candidate": {
-        "pass": false,
-        "failures": [
-          "Item 3 (afordancia dedicada \"Copiar mesmo assim\") ausente — nenhum id/rotulo de override de copia encontrado no HTML.",
-          "Itens 4 e 5 (confirmacao explicita / auditabilidade do override) nao verificaveis: dependem do item 3 existir primeiro."
-        ],
+        "pass": true,
+        "failures": [],
         "observed": {
           "staticCheck": {
             "hasBlockMechanism": true,
-            "hasDedicatedOverrideId": false,
-            "hasGenericMesmoAssimNearCopiar": false,
+            "hasDedicatedOverrideId": true,
+            "hasGenericMesmoAssimNearCopiar": true,
             "pageErrors": [],
             "consoleErrors": []
           },
@@ -314,15 +351,56 @@
             "pageErrors": [],
             "consoleErrors": []
           },
+          "unblockedFlow": {
+            "writes": [
+              "TEXTO CLINICO SEM PENDENCIA (teste P0-03)"
+            ],
+            "threw": null,
+            "overrideVisible": false,
+            "pageErrors": [],
+            "consoleErrors": []
+          },
+          "overrideFlow": {
+            "supported": true,
+            "confirmCalls": [
+              "Há pendência(s) crítica(s) não resolvida(s):\n\nPendencia critica sintetica para teste P0-03.\n\nCopiar mesmo assim registra esta decisão no log de auditoria da sessão e vale apenas para esta cópia — a próxima tentativa volta a ficar bloqueada.\n\nConfirma que revisou e deseja copiar mesmo assim?",
+              "Há pendência(s) crítica(s) não resolvida(s):\n\nPendencia critica sintetica para teste P0-03.\n\nCopiar mesmo assim registra esta decisão no log de auditoria da sessão e vale apenas para esta cópia — a próxima tentativa volta a ficar bloqueada.\n\nConfirma que revisou e deseja copiar mesmo assim?"
+            ],
+            "threwNormalBlocked": null,
+            "writesAfterBlockedNormalCopy": 0,
+            "statusAfterBlockedNormalCopy": "Cópia bloqueada: resolva as pendências críticas e gere novamente o documento.",
+            "threwCancel": null,
+            "writesAfterCancel": 0,
+            "auditListAfterCancel": "",
+            "statusAfterCancel": "Override de cópia cancelado. O bloqueio permanece.",
+            "threwConfirm": null,
+            "writesAfterConfirm": 1,
+            "auditListAfterConfirm": "⚠ Override de cópia em 2026-08-14T23:43:20.874Z — pendência(s) ignorada(s) por decisão humana: Pendencia critica sintetica para teste P0-03.",
+            "auditCardShownAfterConfirm": true,
+            "copyBlockedAfterConfirm": true,
+            "statusAfterConfirm": "Documento copiado mesmo com pendências — override registrado no log de auditoria desta sessão.",
+            "threwSecondNormal": null,
+            "writesAfterSecondNormal": 1,
+            "pageErrors": [],
+            "consoleErrors": []
+          },
           "items": {
             "item1": true,
             "item2": true,
-            "item3": false,
-            "item4": false,
-            "item5": false
+            "item3": true,
+            "item4": true,
+            "item5": true
+          },
+          "tests": {
+            "test1": true,
+            "test3": true,
+            "test4": true,
+            "test5": true,
+            "test6": true,
+            "test7": true
           }
         },
-        "artifactSha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d"
+        "artifactSha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356"
       }
     },
     "CI-05": {
@@ -359,7 +437,7 @@
           "unchanged": true,
           "sameReference": true
         },
-        "artifactSha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d"
+        "artifactSha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356"
       }
     }
   },
@@ -380,7 +458,7 @@
     },
     "P0-03": {
       "label": "EXPECTED_CHANGE",
-      "rationale": "baseline: bloqueio inicial presente, mas sem override deliberado/auditavel (itens 3-5) — politica pendente de implementacao. reference: nem o bloqueio inicial (item 1) esta implementado — lacuna mais ampla que so a falta de override. candidate: bloqueio inicial presente, mas sem override deliberado/auditavel (itens 3-5) — politica pendente de implementacao."
+      "rationale": "baseline: bloqueio inicial presente, mas sem override deliberado/auditavel completo (itens 3-5) — politica pendente de implementacao. reference: nem o bloqueio inicial (item 1) esta implementado — lacuna mais ampla que so a falta de override. candidate: politica completa (bloqueio + override com confirmacao + audit log + revalidacao apos a operacao) implementada e confirmada dinamicamente."
     },
     "CI-05": {
       "label": "EXPECTED_CHANGE",

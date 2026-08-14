@@ -117,6 +117,115 @@ export async function captureCopyFlow(session, { copyBlocked }) {
   };
 }
 
+// Executa copiar() sem nenhuma pendencia (COPY_BLOCKED=false) e confirma que copia normalmente,
+// sem exigir override nem confirmacao (P0-03, teste 1 do contrato).
+export async function captureCopyUnblockedFlow(session) {
+  const result = await session.page.evaluate(() => {
+    const writes = [];
+    const originalClipboard = navigator.clipboard;
+    try {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: (txt) => { writes.push(txt); return Promise.resolve(); } },
+      });
+    } catch { /* noop */ }
+    const outputBody = document.getElementById('output-body');
+    if (outputBody) outputBody.textContent = 'TEXTO CLINICO SEM PENDENCIA (teste P0-03)';
+    if (typeof setCopyBlocked === 'function') setCopyBlocked(false);
+    let threw = null;
+    try { copiar(); } catch (e) { threw = String((e && e.message) || e); }
+    const overrideBtn = document.getElementById('btn-copiar-mesmo-assim');
+    const overrideVisible = overrideBtn ? overrideBtn.style.display !== 'none' : null;
+    try {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', { configurable: true, value: originalClipboard });
+    } catch { /* noop */ }
+    return { writes, threw, overrideVisible };
+  });
+  return { ...result, pageErrors: [...session.pageErrors], consoleErrors: [...session.consoleErrors] };
+}
+
+// Executa o fluxo completo de override de copia (P0-03, reports/COPY_POLICY_CONTRACT.md), inteiro
+// dentro da pagina real: forca COPY_BLOCKED com um motivo de pendencia conhecido (escrito em
+// #pending-list, a mesma fonte que copiarComOverride() le), stuba clipboard e window.confirm, e
+// executa em sequencia: (a) copiar() normal bloqueado, (b) override cancelado na confirmacao,
+// (c) override confirmado, (d) copiar() normal de novo depois do override. Retorna null-safe
+// {supported:false} se copiarComOverride() nao existir no artefato (baseline/referencia antes do
+// port), sem lancar excecao.
+export async function captureCopyOverrideFlow(session, { pendingReason }) {
+  const hasFn = await session.page.evaluate(() => typeof copiarComOverride === 'function');
+  if (!hasFn) {
+    return { supported: false, pageErrors: [...session.pageErrors], consoleErrors: [...session.consoleErrors] };
+  }
+  const result = await session.page.evaluate(async (pendingReason) => {
+    const writes = [];
+    const confirmCalls = [];
+    const originalClipboard = navigator.clipboard;
+    try {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: (txt) => { writes.push(txt); return Promise.resolve(); } },
+      });
+    } catch { /* noop */ }
+    const originalConfirm = window.confirm;
+    let confirmReturnValue = true;
+    window.confirm = (msg) => { confirmCalls.push(msg); return confirmReturnValue; };
+
+    const outputBody = document.getElementById('output-body');
+    if (outputBody) outputBody.textContent = 'TEXTO CLINICO DE TESTE (override P0-03)';
+    const pendList = document.getElementById('pending-list');
+    if (pendList) pendList.textContent = pendingReason;
+
+    if (typeof setCopyBlocked === 'function') setCopyBlocked(true);
+
+    // (a) copiar() normal, bloqueado.
+    let threwNormalBlocked = null;
+    try { copiar(); } catch (e) { threwNormalBlocked = String((e && e.message) || e); }
+    const writesAfterBlockedNormalCopy = writes.length;
+    const statusAfterBlockedNormalCopy = document.getElementById('status-msg')?.textContent || '';
+
+    // (b) override, cancelado na confirmacao -> nao deve copiar nem auditar.
+    confirmReturnValue = false;
+    let threwCancel = null;
+    try { copiarComOverride(); } catch (e) { threwCancel = String((e && e.message) || e); }
+    const writesAfterCancel = writes.length;
+    const auditListAfterCancel = document.getElementById('audit-list')?.textContent || '';
+    const statusAfterCancel = document.getElementById('status-msg')?.textContent || '';
+
+    // (c) override, confirmado -> deve copiar exatamente uma vez e registrar audit log.
+    // copiarComOverride() escreve no clipboard sincronamente, mas atualiza audit log/status dentro
+    // do .then() da Promise de writeText — precisa ceder o loop de eventos antes de ler esse estado,
+    // senao le o DOM antes do microtask correspondente rodar (falso negativo, nao bug da aplicacao).
+    confirmReturnValue = true;
+    let threwConfirm = null;
+    try { copiarComOverride(); } catch (e) { threwConfirm = String((e && e.message) || e); }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const writesAfterConfirm = writes.length;
+    const auditListAfterConfirm = document.getElementById('audit-list')?.textContent || '';
+    const auditCardShownAfterConfirm = (document.getElementById('audit-card')?.className || '').includes('show');
+    const copyBlockedAfterConfirm = typeof COPY_BLOCKED !== 'undefined' ? COPY_BLOCKED : null;
+    const statusAfterConfirm = document.getElementById('status-msg')?.textContent || '';
+
+    // (d) segunda tentativa de copia NORMAL apos o override -> deve voltar a bloquear.
+    let threwSecondNormal = null;
+    try { copiar(); } catch (e) { threwSecondNormal = String((e && e.message) || e); }
+    const writesAfterSecondNormal = writes.length;
+
+    window.confirm = originalConfirm;
+    try {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', { configurable: true, value: originalClipboard });
+    } catch { /* noop */ }
+
+    return {
+      confirmCalls,
+      threwNormalBlocked, writesAfterBlockedNormalCopy, statusAfterBlockedNormalCopy,
+      threwCancel, writesAfterCancel, auditListAfterCancel, statusAfterCancel,
+      threwConfirm, writesAfterConfirm, auditListAfterConfirm, auditCardShownAfterConfirm, copyBlockedAfterConfirm, statusAfterConfirm,
+      threwSecondNormal, writesAfterSecondNormal,
+    };
+  }, pendingReason);
+  return { supported: true, ...result, pageErrors: [...session.pageErrors], consoleErrors: [...session.consoleErrors] };
+}
+
 // Executa `buildExamesCompactos(d)` sobre um array de exames sintetico e
 // retorna o texto compactado, alem de uma verificacao de que o array de
 // entrada original (d.exames) nao foi mutado pela chamada (snapshot
