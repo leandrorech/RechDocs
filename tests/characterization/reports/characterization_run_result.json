@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-12T08:11:19.046Z",
+  "generatedAt": "2026-08-14T09:31:02.037Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -19,8 +19,8 @@
       "key": "candidate",
       "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
       "path": "output/RechDocs_v3.4.1.html",
-      "sha256": "f8bf499b1b8483f80457afdb32248ee7411abce54c0cc2c4ca30fd4b832814fa",
-      "bytes": 220845
+      "sha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572",
+      "bytes": 223650
     }
   },
   "results": {
@@ -65,27 +65,20 @@
         "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
       },
       "candidate": {
-        "pass": false,
-        "failures": [
-          "PEEP do episodio encerrado vazou: peep=\"8\" (esperado ausente).",
-          "VC do episodio encerrado vazou: vc_ml=\"420\" (esperado ausente)."
-        ],
+        "pass": true,
+        "failures": [],
         "observed": {
           "ventilatorio": {
             "modo": "PCV",
-            "fio2": "40",
-            "peep": "8",
-            "vc_ml": "420"
+            "fio2": "40"
           },
           "conflitos": [],
           "warnings": [],
-          "auditLog": [
-            "Ventilatório: modo atualizado para \"PCV\" (03/07/2026) — evento de maior precedência."
-          ],
+          "auditLog": [],
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "f8bf499b1b8483f80457afdb32248ee7411abce54c0cc2c4ca30fd4b832814fa"
+        "artifactSha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572"
       }
     },
     "P0-02": {
@@ -191,7 +184,8 @@
               "modo": "PCV"
             },
             "conflitos": [
-              "Conflito ventilatório: evento \"extubado\" (05/07/2026) empatou com evento \"intubado\" (05/07/2026). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente."
+              "Conflito ventilatório: evento \"extubado\" (05/07/2026) empatou com evento \"intubado\" (05/07/2026). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente.",
+              "VM: estado ativo determinado, mas nenhum evento ventilatório cronologicamente posterior à última extubação foi encontrado — revisar cronologia manualmente."
             ],
             "copyEffect": {
               "supported": true,
@@ -220,7 +214,7 @@
             "consoleErrors": []
           }
         },
-        "artifactSha256": "f8bf499b1b8483f80457afdb32248ee7411abce54c0cc2c4ca30fd4b832814fa"
+        "artifactSha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572"
       }
     },
     "P0-03": {
@@ -322,7 +316,7 @@
             "item5": false
           }
         },
-        "artifactSha256": "f8bf499b1b8483f80457afdb32248ee7411abce54c0cc2c4ca30fd4b832814fa"
+        "artifactSha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572"
       }
     },
     "CI-05": {
@@ -359,14 +353,14 @@
           "unchanged": true,
           "sameReference": true
         },
-        "artifactSha256": "f8bf499b1b8483f80457afdb32248ee7411abce54c0cc2c4ca30fd4b832814fa"
+        "artifactSha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572"
       }
     }
   },
   "classifications": {
     "P0-01": {
-      "label": "BASELINE_BUG_REVEALED",
-      "rationale": "Bug identico entre baseline e candidata; nao e regressao da consolidacao v3.4.1 (nada piorou), mas confirma que a correcao deliberada disponivel na referencia (fix P0-06) nunca foi portada."
+      "label": "EXPECTED_CHANGE",
+      "rationale": "Candidata corrige um bug presente na baseline — mudanca desejada, nao regressao."
     },
     "P0-02": {
       "P0-02a": {

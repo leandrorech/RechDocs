@@ -1677,11 +1677,46 @@ class ClinicalState{
       this.log(`Ventilatório: extubado${vencedorStatus.data?' em '+vencedorStatus.data:''} — VM desativada, parâmetros anteriores não se aplicam mais.`);
       return {};
     }
-    // 2. Estado é "ativo" — resolve cada campo numérico independentemente, por precedência própria.
+    // fix P0-01 (port mínimo do mecanismo de fronteira de episódio já disponível na referência
+    // v3.4.0, comentário original "fix P0-06" — ver reports/P0_REVALIDATION_CURRENT_CANDIDATE.md):
+    // antes, o passo 2 resolvia cada campo (peep, vc_ml...) por precedência entre TODOS os eventos
+    // da lista inteira, sem qualquer noção de "episódio" ventilatório — permitindo que PEEP/VC de uma
+    // intubação ANTERIOR vencessem numa reintubação posterior só por serem o único candidato para
+    // aquele campo. A correção ordena os eventos CRONOLOGICAMENTE (não por precedência documental) e
+    // restringe os candidatos de cada campo ao EPISÓDIO VIGENTE — tudo que aconteceu estritamente
+    // depois da última extubação/retirada cronológica. Um campo sem candidato dentro do episódio
+    // vigente fica ausente (undefined) em vez de herdar o valor do episódio anterior; isso é
+    // intencional — "PEEP não informado nesta reintubação" é mais seguro que "PEEP inventado".
+    const chronoScore=e=>parseDateTimeScore(e.data,e.hora);
+    const sorted=[...arr].sort((a,b)=>{
+      const sa=chronoScore(a), sb=chronoScore(b);
+      if(sa!==null && sb!==null && sa!==sb) return sa-sb;
+      // mesma data/hora, ou uma das duas (ou ambas) sem data — usa 'ordem' (posição de menção nos
+      // documentos-fonte) como critério cronológico auxiliar, mesma convenção de comparaPrecedencia.
+      return (a.ordem||0)-(b.ordem||0);
+    });
+    if(arr.some(e=>chronoScore(e)===null) && arr.some(e=>['extubado','retirado','suspenso'].includes(normalizeStatus(e.status,'ativo')))){
+      this.conflitos.push('⛔ Episódio ventilatório contém extubação/retirada sem data válida. A fronteira entre episódios pode estar incorreta — confirmar cronologia antes de assinar.');
+    }
+    let lastExtubIdx=-1;
+    sorted.forEach((e,i)=>{
+      if(['extubado','retirado','suspenso'].includes(normalizeStatus(e.status,'ativo'))) lastExtubIdx=i;
+    });
+    let episodioAtual = lastExtubIdx===-1 ? sorted : sorted.slice(lastExtubIdx+1);
+    // Guarda de segurança: se o episódio vigente ficar vazio (ex: vencedorStatus decidiu "ativo" via
+    // atualização explícita que não é cronologicamente o evento mais recente), não deixa a VM
+    // desaparecer do documento por completo — volta a considerar todos os eventos e registra um
+    // conflito para revisão humana, em vez de falhar silenciosamente.
+    if(!episodioAtual.length){
+      this.conflitos.push('VM: estado ativo determinado, mas nenhum evento ventilatório cronologicamente posterior à última extubação foi encontrado — revisar cronologia manualmente.');
+      episodioAtual=sorted;
+    }
+    // 2. Estado é "ativo" — resolve cada campo numérico independentemente, por precedência própria,
+    // só entre os eventos do episódio vigente (não mais arr inteiro).
     const fields=['modo','fio2','peep','ps','vc_ml','fr_vent','pplat','pip','ie','autopeep','observacao'];
     const out={};
     for(const f of fields){
-      const candidatos=arr.filter(e=>e[f]!==undefined && e[f]!==null && e[f]!=='');
+      const candidatos=episodioAtual.filter(e=>e[f]!==undefined && e[f]!==null && e[f]!=='');
       if(!candidatos.length)continue;
       let vencedor=candidatos[0];
       for(let i=1;i<candidatos.length;i++){
