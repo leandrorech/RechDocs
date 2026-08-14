@@ -1705,10 +1705,11 @@ class ClinicalState{
     let episodioAtual = lastExtubIdx===-1 ? sorted : sorted.slice(lastExtubIdx+1);
     // Guarda de segurança: se o episódio vigente ficar vazio (ex: vencedorStatus decidiu "ativo" via
     // atualização explícita que não é cronologicamente o evento mais recente), não deixa a VM
-    // desaparecer do documento por completo — volta a considerar todos os eventos e registra um
-    // conflito para revisão humana, em vez de falhar silenciosamente.
+    // desaparecer do documento por completo — volta a considerar todos os eventos. Sem alerta próprio
+    // aqui: quando esse esvaziamento decorre de um empate ativo/extubado, a etapa 1 já registrou o
+    // conflito ventilatório; um segundo alerta ("estado ativo determinado") contradiria a mensagem da
+    // etapa 1 (que diz explicitamente que o estado NÃO foi decidido automaticamente).
     if(!episodioAtual.length){
-      this.conflitos.push('VM: estado ativo determinado, mas nenhum evento ventilatório cronologicamente posterior à última extubação foi encontrado — revisar cronologia manualmente.');
       episodioAtual=sorted;
     }
     // 2. Estado é "ativo" — resolve cada campo numérico independentemente, por precedência própria,

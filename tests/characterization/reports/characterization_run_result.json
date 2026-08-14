@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-14T09:31:02.037Z",
+  "generatedAt": "2026-08-14T19:33:57.466Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -19,8 +19,8 @@
       "key": "candidate",
       "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
       "path": "output/RechDocs_v3.4.1.html",
-      "sha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572",
-      "bytes": 223650
+      "sha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7",
+      "bytes": 223685
     }
   },
   "results": {
@@ -78,7 +78,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572"
+        "artifactSha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7"
       }
     },
     "P0-02": {
@@ -184,8 +184,7 @@
               "modo": "PCV"
             },
             "conflitos": [
-              "Conflito ventilatório: evento \"extubado\" (05/07/2026) empatou com evento \"intubado\" (05/07/2026). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente.",
-              "VM: estado ativo determinado, mas nenhum evento ventilatório cronologicamente posterior à última extubação foi encontrado — revisar cronologia manualmente."
+              "Conflito ventilatório: evento \"extubado\" (05/07/2026) empatou com evento \"intubado\" (05/07/2026). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente."
             ],
             "copyEffect": {
               "supported": true,
@@ -214,7 +213,7 @@
             "consoleErrors": []
           }
         },
-        "artifactSha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572"
+        "artifactSha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7"
       }
     },
     "P0-03": {
@@ -316,7 +315,7 @@
             "item5": false
           }
         },
-        "artifactSha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572"
+        "artifactSha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7"
       }
     },
     "CI-05": {
@@ -353,7 +352,7 @@
           "unchanged": true,
           "sameReference": true
         },
-        "artifactSha256": "ba3dcd5877c6004499942d0c3b6166961e706fb18f47e5ae878a7e32d7b69572"
+        "artifactSha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7"
       }
     }
   },
