@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-14T19:33:57.466Z",
+  "generatedAt": "2026-08-14T19:36:39.709Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -19,8 +19,8 @@
       "key": "candidate",
       "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
       "path": "output/RechDocs_v3.4.1.html",
-      "sha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7",
-      "bytes": 223685
+      "sha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d",
+      "bytes": 224847
     }
   },
   "results": {
@@ -78,7 +78,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7"
+        "artifactSha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d"
       }
     },
     "P0-02": {
@@ -172,10 +172,8 @@
         "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
       },
       "candidate": {
-        "pass": false,
-        "failures": [
-          "P0-02b (assimetrico \"VM ativa\" x \"extubado\") — nenhum conflito detectado; estado resolvido silenciosamente para \"extubado (implicito, sem sinalizacao)\". copyEffect={\"supported\":true,\"pendencies\":[],\"wouldBlockCopy\":false} (copia NAO bloqueada apesar da contradicao)."
-        ],
+        "pass": true,
+        "failures": [],
         "observed": {
           "symmetric": {
             "conflictDetected": true,
@@ -200,20 +198,29 @@
             "consoleErrors": []
           },
           "asymmetric": {
-            "conflictDetected": false,
-            "silentlyResolved": "extubado (implicito, sem sinalizacao)",
-            "ventilatorio": {},
-            "conflitos": [],
+            "conflictDetected": true,
+            "silentlyResolved": null,
+            "ventilatorio": {
+              "modo": "PCV"
+            },
+            "conflitos": [
+              "Conflito ventilatório: evento \"extubado\" (05/07/2026) empatou com evento \"vm ativa\" (05/07/2026). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente."
+            ],
             "copyEffect": {
               "supported": true,
-              "pendencies": [],
-              "wouldBlockCopy": false
+              "pendencies": [
+                "VM sem FiO₂.",
+                "VM sem PEEP.",
+                "VM sem PaO₂/gasometria estruturada para P/F.",
+                "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
+              ],
+              "wouldBlockCopy": true
             },
             "pageErrors": [],
             "consoleErrors": []
           }
         },
-        "artifactSha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7"
+        "artifactSha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d"
       }
     },
     "P0-03": {
@@ -315,7 +322,7 @@
             "item5": false
           }
         },
-        "artifactSha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7"
+        "artifactSha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d"
       }
     },
     "CI-05": {
@@ -352,7 +359,7 @@
           "unchanged": true,
           "sameReference": true
         },
-        "artifactSha256": "88d0aaa691f20d0b233e9a646d118263e3c79d376c9615c6b726c57b84ecb7c7"
+        "artifactSha256": "3253ebe150daa68df5ab9b0ac17355c74b50212a274352cd915f1d227164b89d"
       }
     }
   },
@@ -367,8 +374,8 @@
         "rationale": "Mecanismo de deteccao de empate funciona nos tres artefatos e efetivamente bloqueia a copia — comportamento correto confirmado dinamicamente."
       },
       "P0-02b": {
-        "label": "REFERENCE_BUG_REVEALED",
-        "rationale": "Bug presente inclusive na referencia (fonte de correcoes deliberadas conhecidas) — achado novo, sem ID previo em REGRESSION_RISKS.md."
+        "label": "UNRESOLVED",
+        "rationale": "Combinacao mista entre artefatos — revisar manualmente antes de reconciliar."
       }
     },
     "P0-03": {

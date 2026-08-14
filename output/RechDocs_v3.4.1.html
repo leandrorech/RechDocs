@@ -1660,10 +1660,21 @@ class ClinicalState{
     if(!arr.length) return {};
     // 1. Determina se o estado vigente é "intubado/VM ativa" ou "extubado" — fold de precedência
     // entre TODOS os eventos (um evento de extubação pode vencer eventos que só ajustam parâmetro).
+    // fix R-17 (achado P0-02b, ver reports/P0_REVALIDATION_CURRENT_CANDIDATE.md): comparaPrecedencia()
+    // usa EXECUTED_VERBS (lista pensada para verbos de conduta/medicação como "iniciado"/"suspenso")
+    // no critério "ação explícita vence menção passiva". "extubado"/"retirado"/"suspenso" já contêm um
+    // radical dessa lista, mas "VM ativa"/"ativo"/"intubado" simples nem sempre contêm — fazendo a
+    // comparação decidir DECISIVAMENTE a favor de "extubado" antes de alcançar o critério de empate
+    // real, quando as duas menções deveriam ser tratadas como igualmente "estado declarado" (nenhum
+    // status de VM é uma menção passiva). declaredVentStatus canonicaliza os dois lados para um
+    // marcador que sempre bate em EXECUTED_VERBS ('intubad' ou 'extubad') antes de comparar — só para
+    // esta decisão de estado vigente, sem alterar o comparador genérico, EXECUTED_VERBS global, nem a
+    // resolução de campos individuais no passo 2.
+    const declaredVentStatus=s=>['extubado','retirado','suspenso'].includes(normalizeStatus(s,'ativo'))?'extubado':'intubado';
     let vencedorStatus=arr[0];
     for(let i=1;i<arr.length;i++){
       const cur=arr[i];
-      const cmp=comparaPrecedencia({...cur,acao:cur.status,ordem:cur.ordem}, {...vencedorStatus,acao:vencedorStatus.status,ordem:vencedorStatus.ordem});
+      const cmp=comparaPrecedencia({...cur,acao:declaredVentStatus(cur.status),ordem:cur.ordem}, {...vencedorStatus,acao:declaredVentStatus(vencedorStatus.status),ordem:vencedorStatus.ordem});
       if(cmp>0) vencedorStatus=cur;
       else if(cmp===0){
         const curNeg=['extubado','retirado','suspenso'].includes(normalizeStatus(cur.status,'ativo'));
