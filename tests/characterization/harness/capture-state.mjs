@@ -26,7 +26,7 @@ export async function captureClinicalState(session, raw, modo) {
 
 // Encadeia captureClinicalState com buildCriticalPendencies(finalData, warns)
 // para observar o efeito operacional real de conflitos/warnings no fluxo de
-// copia: warns->pendencias criticas->COPY_BLOCKED. `warns` extras (ex.: o
+// saida: warns->pendencias criticas->ALERTA CRITICO. `warns` extras (ex.: o
 // proprio conflito) sao passados manualmente porque, fora do fluxo completo
 // de geracao (que depende de fetch e DOM de formulario), engine.conflitos e
 // a unica fonte de warnings disponivel de forma deterministica aqui.
@@ -36,194 +36,120 @@ export async function captureClinicalStateWithCopyEffect(session, raw, modo) {
     const hasFn = typeof buildCriticalPendencies === 'function';
     if (!hasFn) return { supported: false };
     const pend = buildCriticalPendencies(finalData, warns);
-    return { supported: true, pendencies: pend, wouldBlockCopy: pend.length > 0 };
+    return { supported: true, pendencies: pend, wouldRaiseCriticalAlert: pend.length > 0 };
   }, { finalData: state.finalData, warns: state.conflitos });
   return { ...state, copyEffect: effect };
 }
 
-// Inspecao estatica da politica de copia: presenca de mecanismo de bloqueio
-// (COPY_BLOCKED/setCopyBlocked) e de qualquer afordancia dedicada de
-// override ("Copiar mesmo assim" ou equivalente, distinta do fluxo de
-// confirmacao de envio de PHI a API externa). Le o HTML bruto do artefato
-// (nao o DOM renderizado) para nao depender de o botao estar visivel no
-// estado inicial da pagina.
-export async function captureCopyPolicyStatic(session) {
-  const fs = await import('node:fs/promises');
-  const html = await fs.readFile(session.artifactPath, 'utf-8');
-
-  const hasBlockMechanism = await session.page.evaluate(() => {
-    return typeof setCopyBlocked === 'function' || typeof COPY_BLOCKED !== 'undefined';
-  }).catch(() => false);
-
-  const hasDedicatedOverrideId = /copiar[-_]?(mesmo[-_]?assim|forcad[oa]|override)|override[-_]?copiar|forcar[-_]?copia/i.test(html);
-  const mesmoAssimIdx = html.search(/mesmo\s+assim/i);
-  const hasGenericMesmoAssimNearCopiar = mesmoAssimIdx !== -1 && /copiar/i.test(
-    html.slice(Math.max(0, mesmoAssimIdx - 400), mesmoAssimIdx + 100)
-  );
-
-  return {
-    hasBlockMechanism,
-    hasDedicatedOverrideId,
-    hasGenericMesmoAssimNearCopiar,
-    pageErrors: [...session.pageErrors],
-    consoleErrors: [...session.consoleErrors],
-  };
-}
-
-// Executa `copiar()` com COPY_BLOCKED forcado para um valor conhecido e
-// captura o efeito observavel: mensagem de status, se o botao fica
-// desabilitado, e se algo foi escrito na "clipboard" (stub local — nao
-// depende de permissao real de clipboard do SO/headless).
-export async function captureCopyFlow(session, { copyBlocked }) {
-  const result = await session.page.evaluate((blocked) => {
-    const writes = [];
-    // Stub local do clipboard: evita depender de permissao de SO/headless
-    // para write real, mas ainda permite observar SE copiar() tentaria escrever.
-    const originalClipboard = navigator.clipboard;
-    try {
-      Object.defineProperty(navigator, 'clipboard', {
-        configurable: true,
-        value: { writeText: (txt) => { writes.push(txt); return Promise.resolve(); } },
-      });
-    } catch { /* alguns browsers nao permitem redefinir; segue sem stub */ }
-
-    if (typeof setCopyBlocked === 'function') setCopyBlocked(!!blocked);
-    else if (typeof COPY_BLOCKED !== 'undefined') { try { COPY_BLOCKED = !!blocked; } catch { /* noop */ } }
-
-    const btn = document.getElementById('btn-copy');
-    const btnDisabledBefore = btn ? btn.disabled : null;
-
-    let threwError = null;
-    try {
-      copiar();
-    } catch (e) {
-      threwError = String(e && e.message || e);
-    }
-
-    const statusMsg = document.getElementById('status-msg');
-    const statusText = statusMsg ? statusMsg.textContent : null;
-
-    try {
-      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', { configurable: true, value: originalClipboard });
-    } catch { /* noop */ }
-
-    return { writes, btnDisabledBefore, statusText, threwError };
-  }, copyBlocked);
-
-  return {
-    ...result,
-    pageErrors: [...session.pageErrors],
-    consoleErrors: [...session.consoleErrors],
-  };
-}
-
-// Executa copiar() sem nenhuma pendencia (COPY_BLOCKED=false) e confirma que copia normalmente,
-// sem exigir override nem confirmacao (P0-03, teste 1 do contrato).
-export async function captureCopyUnblockedFlow(session) {
-  const result = await session.page.evaluate(() => {
-    const writes = [];
-    const originalClipboard = navigator.clipboard;
-    try {
-      Object.defineProperty(navigator, 'clipboard', {
-        configurable: true,
-        value: { writeText: (txt) => { writes.push(txt); return Promise.resolve(); } },
-      });
-    } catch { /* noop */ }
-    const outputBody = document.getElementById('output-body');
-    if (outputBody) outputBody.textContent = 'TEXTO CLINICO SEM PENDENCIA (teste P0-03)';
-    if (typeof setCopyBlocked === 'function') setCopyBlocked(false);
-    let threw = null;
-    try { copiar(); } catch (e) { threw = String((e && e.message) || e); }
-    const overrideBtn = document.getElementById('btn-copiar-mesmo-assim');
-    const overrideVisible = overrideBtn ? overrideBtn.style.display !== 'none' : null;
-    try {
-      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', { configurable: true, value: originalClipboard });
-    } catch { /* noop */ }
-    return { writes, threw, overrideVisible };
-  });
-  return { ...result, pageErrors: [...session.pageErrors], consoleErrors: [...session.consoleErrors] };
-}
-
-// Executa o fluxo completo de override de copia (P0-03, reports/COPY_POLICY_CONTRACT.md), inteiro
-// dentro da pagina real: forca COPY_BLOCKED com um motivo de pendencia conhecido (escrito em
-// #pending-list, a mesma fonte que copiarComOverride() le), stuba clipboard e window.confirm, e
-// executa em sequencia: (a) copiar() normal bloqueado, (b) override cancelado na confirmacao,
-// (c) override confirmado, (d) copiar() normal de novo depois do override. Retorna null-safe
-// {supported:false} se copiarComOverride() nao existir no artefato (baseline/referencia antes do
-// port), sem lancar excecao.
-export async function captureCopyOverrideFlow(session, { pendingReason }) {
-  const hasFn = await session.page.evaluate(() => typeof copiarComOverride === 'function');
+// Politica de copia — contrato vigente: SINALIZACAO MAXIMA, SEM BLOQUEIO
+// (reports/COPY_POLICY_CONTRACT.md). Exercita, dentro da pagina real:
+//   (a) estado COM pendencia: banner, lista, botao habilitado, copia, impressao, audit log;
+//   (b) edicao manual depois disso: o alerta precisa sobreviver e a copia continuar funcionando;
+//   (c) estado SEM pendencia: banner ausente e copia normal;
+//   (d) ausencia dos simbolos do contrato antigo (bloqueio/override) no artefato.
+// Retorna {supported:false} em artefatos sem o mecanismo de alerta (baseline/referencia).
+export async function captureCriticalAlertPolicy(session, { pendencies }) {
+  const hasFn = await session.page.evaluate(() => typeof setCriticalAlert === 'function');
   if (!hasFn) {
     return { supported: false, pageErrors: [...session.pageErrors], consoleErrors: [...session.consoleErrors] };
   }
-  const result = await session.page.evaluate(async (pendingReason) => {
-    const writes = [];
-    const confirmCalls = [];
+
+  const fs = await import('node:fs/promises');
+  const html = await fs.readFile(session.artifactPath, 'utf-8');
+  // O contrato antigo nao pode ressuscitar silenciosamente. Procura os simbolos funcionais dele —
+  // ignorando comentarios/documentacao, que legitimamente citam os nomes ao explicar a mudanca.
+  const legacySymbols = [];
+  if (/function\s+setCopyBlocked\s*\(/.test(html)) legacySymbols.push('setCopyBlocked()');
+  if (/function\s+copiarComOverride\s*\(/.test(html)) legacySymbols.push('copiarComOverride()');
+  if (/\bid=["']btn-copiar-mesmo-assim["']/.test(html)) legacySymbols.push('#btn-copiar-mesmo-assim');
+  if (/^\s*(let|var|const)\s+COPY_BLOCKED\b/m.test(html)) legacySymbols.push('COPY_BLOCKED');
+
+  const result = await session.page.evaluate(async (pend) => {
+    const state = { writes: [], confirms: [], prints: 0 };
     const originalClipboard = navigator.clipboard;
+    const originalConfirm = window.confirm;
+    const originalPrint = window.print;
     try {
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,
-        value: { writeText: (txt) => { writes.push(txt); return Promise.resolve(); } },
+        value: { writeText: (t) => { state.writes.push(t); return Promise.resolve(); } },
       });
     } catch { /* noop */ }
-    const originalConfirm = window.confirm;
-    let confirmReturnValue = true;
-    window.confirm = (msg) => { confirmCalls.push(msg); return confirmReturnValue; };
+    window.confirm = (m) => { state.confirms.push(m); return true; };
+    window.print = () => { state.prints += 1; };
+    const tick = () => new Promise((r) => setTimeout(r, 0));
 
-    const outputBody = document.getElementById('output-body');
-    if (outputBody) outputBody.textContent = 'TEXTO CLINICO DE TESTE (override P0-03)';
-    const pendList = document.getElementById('pending-list');
-    if (pendList) pendList.textContent = pendingReason;
+    document.getElementById('audit-list').textContent = '';
+    document.getElementById('output-body').textContent = 'DOCUMENTO CLINICO SINTETICO (teste P0-03)';
 
-    if (typeof setCopyBlocked === 'function') setCopyBlocked(true);
+    // (a) COM pendencia critica
+    setCriticalAlert(true, pend);
+    const banner = document.getElementById('critical-banner');
+    const warn = document.getElementById('copy-warn');
+    const btn = document.getElementById('btn-copy');
+    const wBefore = state.writes.length, cBefore = state.confirms.length;
+    copiar();
+    await tick();
+    const printThrewLocal = (() => { try { imprimirDocumento(); return null; } catch (e) { return String((e && e.message) || e); } })();
+    await tick();
+    const withPending = {
+      bannerVisible: (banner.className || '').includes('show'),
+      bannerClass: banner.className || '',
+      bannerTitle: (banner.querySelector('.cb-title')?.textContent) || '',
+      bannerMentionsAtencao: /aten[cç][aã]o/i.test((banner.querySelector('.cb-title')?.textContent) || ''),
+      bannerListText: document.getElementById('critical-banner-list').textContent || '',
+      copyWarnVisible: (warn.className || '').includes('show'),
+      copyButtonDisabled: btn.disabled,
+      copyWrites: state.writes.length - wBefore,
+      copyConfirms: state.confirms.length - cBefore,
+      printThrew: printThrewLocal,
+      printCalls: state.prints,
+      auditText: document.getElementById('audit-list').textContent || '',
+    };
 
-    // (a) copiar() normal, bloqueado.
-    let threwNormalBlocked = null;
-    try { copiar(); } catch (e) { threwNormalBlocked = String((e && e.message) || e); }
-    const writesAfterBlockedNormalCopy = writes.length;
-    const statusAfterBlockedNormalCopy = document.getElementById('status-msg')?.textContent || '';
+    // (b) edicao manual depois do alerta
+    const body = document.getElementById('output-body');
+    body.textContent = (body.textContent || '') + ' EDICAO MANUAL';
+    body.dispatchEvent(new Event('input', { bubbles: true }));
+    await tick();
+    const wBefore2 = state.writes.length;
+    copiar();
+    await tick();
+    const afterEdit = {
+      bannerStillVisible: (document.getElementById('critical-banner').className || '').includes('show'),
+      alertStillActive: typeof CRITICAL_ALERT_ACTIVE !== 'undefined' ? CRITICAL_ALERT_ACTIVE : null,
+      copyStillWorks: state.writes.length - wBefore2 === 1,
+    };
 
-    // (b) override, cancelado na confirmacao -> nao deve copiar nem auditar.
-    confirmReturnValue = false;
-    let threwCancel = null;
-    try { copiarComOverride(); } catch (e) { threwCancel = String((e && e.message) || e); }
-    const writesAfterCancel = writes.length;
-    const auditListAfterCancel = document.getElementById('audit-list')?.textContent || '';
-    const statusAfterCancel = document.getElementById('status-msg')?.textContent || '';
-
-    // (c) override, confirmado -> deve copiar exatamente uma vez e registrar audit log.
-    // copiarComOverride() escreve no clipboard sincronamente, mas atualiza audit log/status dentro
-    // do .then() da Promise de writeText — precisa ceder o loop de eventos antes de ler esse estado,
-    // senao le o DOM antes do microtask correspondente rodar (falso negativo, nao bug da aplicacao).
-    confirmReturnValue = true;
-    let threwConfirm = null;
-    try { copiarComOverride(); } catch (e) { threwConfirm = String((e && e.message) || e); }
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const writesAfterConfirm = writes.length;
-    const auditListAfterConfirm = document.getElementById('audit-list')?.textContent || '';
-    const auditCardShownAfterConfirm = (document.getElementById('audit-card')?.className || '').includes('show');
-    const copyBlockedAfterConfirm = typeof COPY_BLOCKED !== 'undefined' ? COPY_BLOCKED : null;
-    const statusAfterConfirm = document.getElementById('status-msg')?.textContent || '';
-
-    // (d) segunda tentativa de copia NORMAL apos o override -> deve voltar a bloquear.
-    let threwSecondNormal = null;
-    try { copiar(); } catch (e) { threwSecondNormal = String((e && e.message) || e); }
-    const writesAfterSecondNormal = writes.length;
+    // (c) SEM pendencia
+    setCriticalAlert(false);
+    const wBefore3 = state.writes.length;
+    copiar();
+    await tick();
+    const noPending = {
+      bannerVisible: (document.getElementById('critical-banner').className || '').includes('show'),
+      copyWarnVisible: (document.getElementById('copy-warn').className || '').includes('show'),
+      copyButtonDisabled: document.getElementById('btn-copy').disabled,
+      copyWrites: state.writes.length - wBefore3,
+    };
 
     window.confirm = originalConfirm;
+    window.print = originalPrint;
     try {
       if (originalClipboard) Object.defineProperty(navigator, 'clipboard', { configurable: true, value: originalClipboard });
     } catch { /* noop */ }
 
-    return {
-      confirmCalls,
-      threwNormalBlocked, writesAfterBlockedNormalCopy, statusAfterBlockedNormalCopy,
-      threwCancel, writesAfterCancel, auditListAfterCancel, statusAfterCancel,
-      threwConfirm, writesAfterConfirm, auditListAfterConfirm, auditCardShownAfterConfirm, copyBlockedAfterConfirm, statusAfterConfirm,
-      threwSecondNormal, writesAfterSecondNormal,
-    };
-  }, pendingReason);
-  return { supported: true, ...result, pageErrors: [...session.pageErrors], consoleErrors: [...session.consoleErrors] };
+    return { withPending, afterEdit, noPending };
+  }, pendencies);
+
+  return {
+    supported: true,
+    ...result,
+    legacySymbols,
+    noBlockingMechanism: legacySymbols.length === 0,
+    pageErrors: [...session.pageErrors],
+    consoleErrors: [...session.consoleErrors],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -295,8 +221,8 @@ async function installProviderStub(page, extraction) {
 // Executa o fluxo completo pela interface real. Retorna {supported:false} quando o artefato nao
 // possui o fluxo de override (baseline/referencia), sem lancar excecao.
 export async function runFullUiFlow(session) {
-  const hasOverride = await session.page.evaluate(() => typeof copiarComOverride === 'function');
-  if (!hasOverride) {
+  const hasAlert = await session.page.evaluate(() => typeof setCriticalAlert === 'function');
+  if (!hasAlert) {
     return { supported: false, pageErrors: [...session.pageErrors], consoleErrors: [...session.consoleErrors] };
   }
 
@@ -340,7 +266,9 @@ export async function runFullUiFlow(session) {
     outputTextLength: (document.getElementById('output-body').textContent || '').length,
     statusText: document.getElementById('status-msg').textContent || '',
     pendingText: document.getElementById('pending-list').textContent || '',
-    copyBlockedAfterGeneration: typeof COPY_BLOCKED !== 'undefined' ? COPY_BLOCKED : null,
+    criticalAlertAfterGeneration: typeof CRITICAL_ALERT_ACTIVE !== 'undefined' ? CRITICAL_ALERT_ACTIVE : null,
+    bannerVisible: (document.getElementById('critical-banner').className || '').includes('show'),
+    copyButtonDisabled: document.getElementById('btn-copy').disabled,
   }));
   generation.pageErrors = [...session.pageErrors];
 
@@ -353,110 +281,100 @@ export async function runFullUiFlow(session) {
   await flush();
   cleanCopy.writes = (await session.page.evaluate(() => window.__e2e.writes.length)) - cleanCopy.before;
 
-  // --- 3. edicao manual COM pendencia critica ativa (assercao de seguranca R-01) ---
-  // Primeiro instala uma pendencia critica e o bloqueio; depois digita no preview e observa se o
-  // bloqueio sobrevive. Tambem testa o caminho da pre-evolucao com baseBlocked=true.
-  const editUnderBlock = await session.page.evaluate(() => {
+  // --- 3. edicao manual COM alerta critico ativo ---
+  // Contrato vigente: a saida NUNCA e bloqueada, entao nao ha bypass a testar. O que se verifica e
+  // que a SINALIZACAO sobrevive a edicao manual (antes, o listener global de 'input' apagava o
+  // estado a cada tecla — achado R-01/R-07) e que a copia continua funcionando normalmente.
+  const editUnderAlert = await session.page.evaluate(() => {
     document.getElementById('audit-list').textContent = '';
-    document.getElementById('pending-list').textContent = 'Pendencia critica sintetica (R-01) para teste E2E.';
-    document.getElementById('pending-card').className = 'pending-card show';
-    setCopyBlocked(true);
-    const copyBlockedBefore = COPY_BLOCKED;
+    setCriticalAlert(true, ['Pendencia critica sintetica (R-01) para teste E2E.']);
+    const alertBefore = CRITICAL_ALERT_ACTIVE;
+    const bannerBefore = (document.getElementById('critical-banner').className || '').includes('show');
 
     const body = document.getElementById('output-body');
     body.textContent = (body.textContent || '') + '\nEDICAO MANUAL DE TESTE E2E';
     body.dispatchEvent(new Event('input', { bubbles: true }));
-    const copyBlockedAfterEdit = COPY_BLOCKED;
-    const auditAfterEdit = document.getElementById('audit-list').textContent || '';
+
+    const alertAfterEdit = CRITICAL_ALERT_ACTIVE;
+    const bannerAfterEdit = (document.getElementById('critical-banner').className || '').includes('show');
+    const warnAfterEdit = (document.getElementById('copy-warn').className || '').includes('show');
+    const copyDisabledAfterEdit = document.getElementById('btn-copy').disabled;
 
     const beforeW = window.__e2e.writes.length;
     copiar();
     const writesAfterEdit = window.__e2e.writes.length - beforeW;
 
-    // 3b: mesmo teste pelo caminho da pre-evolucao, iniciada com pendencia BLOQUEANTE.
-    let prefillBypass = null, prefillReviewed = null;
+    // Mesmo caminho pela pre-evolucao com pendencia de reconciliacao.
+    let prefillAlertSurvives = null;
     if (typeof startPreEvolutionEditor === 'function') {
       startPreEvolutionEditor('texto de pre-evolucao sintetico', [], /* baseBlocked */ true);
       const ed = document.getElementById('prefill-editor');
       ed.value = 'texto de pre-evolucao editado';
       ed.dispatchEvent(new Event('input', { bubbles: true }));
-      prefillReviewed = PREFILL_STATE.reviewed;
-      const bw = window.__e2e.writes.length;
-      copiar();
-      prefillBypass = window.__e2e.writes.length > bw; // copiou sem confirmar revisao?
+      prefillAlertSurvives = CRITICAL_ALERT_ACTIVE === true
+        && (document.getElementById('critical-banner').className || '').includes('show');
     }
 
-    return { copyBlockedBefore, copyBlockedAfterEdit, auditAfterEdit, writesAfterEdit, prefillBypass, prefillReviewed };
+    return { alertBefore, bannerBefore, alertAfterEdit, bannerAfterEdit, warnAfterEdit,
+             copyDisabledAfterEdit, writesAfterEdit, prefillAlertSurvives };
   });
   await flush();
 
-  // --- 5. bloqueio com pendencia critica ---
-  const blocked = await session.page.evaluate(() => {
+  // --- 5. alerta critico com pendencia (sem bloqueio) ---
+  const alerted = await session.page.evaluate(() => {
     document.getElementById('pending-list').textContent = 'Pendencia critica sintetica de teste E2E.';
     document.getElementById('pending-card').className = 'pending-card show';
-    setCopyBlocked(true);
+    document.getElementById('audit-list').textContent = '';
+    setCriticalAlert(true, ['Pendencia critica sintetica de teste E2E.']);
     const before = window.__e2e.writes.length;
-    copiar();
-    const btn = document.getElementById('btn-copiar-mesmo-assim');
     return {
       before,
-      copyBlocked: COPY_BLOCKED,
-      overrideButtonVisible: btn ? btn.style.display !== 'none' : null,
-      pendingText: document.getElementById('pending-list').textContent || '',
+      alertActive: CRITICAL_ALERT_ACTIVE,
+      bannerVisible: (document.getElementById('critical-banner').className || '').includes('show'),
+      bannerListText: document.getElementById('critical-banner-list').textContent || '',
+      copyWarnVisible: (document.getElementById('copy-warn').className || '').includes('show'),
+      copyButtonDisabled: document.getElementById('btn-copy').disabled,
     };
   });
   await flush();
-  blocked.writes = (await session.page.evaluate(() => window.__e2e.writes.length)) - blocked.before;
 
-  // --- 6. override cancelado ---
-  const overrideCancelled = await session.page.evaluate(() => {
-    window.__e2e.confirmReturn = false;
+  // --- 6/7. copia COM alerta ativo: funciona, sem confirmacao, e fica auditada ---
+  const copyWithAlert = await session.page.evaluate(() => {
     const beforeW = window.__e2e.writes.length;
     const beforeC = window.__e2e.confirms.length;
-    copiarComOverride();
+    copiar();
     return { beforeW, beforeC };
   });
   await flush();
-  Object.assign(overrideCancelled, await session.page.evaluate((prev) => ({
+  Object.assign(copyWithAlert, await session.page.evaluate((prev) => ({
     writes: window.__e2e.writes.length - prev.beforeW,
-    confirmCalled: window.__e2e.confirms.length > prev.beforeC,
-    auditText: document.getElementById('audit-list').textContent || '',
-  }), overrideCancelled));
-
-  // --- 7. override confirmado ---
-  const overrideConfirmed = await session.page.evaluate(() => {
-    window.__e2e.confirmReturn = true;
-    const beforeW = window.__e2e.writes.length;
-    copiarComOverride();
-    return { beforeW };
-  });
-  await flush();
-  Object.assign(overrideConfirmed, await session.page.evaluate((prev) => ({
-    writes: window.__e2e.writes.length - prev.beforeW,
+    confirms: window.__e2e.confirms.length - prev.beforeC,
     auditText: document.getElementById('audit-list').textContent || '',
     auditCardVisible: (document.getElementById('audit-card').className || '').includes('show'),
-  }), overrideConfirmed));
+    alertStillActive: CRITICAL_ALERT_ACTIVE,
+  }), copyWithAlert));
 
-  // --- 8. segunda copia normal volta a bloquear ---
+  // --- 8. segunda copia com alerta: continua funcionando (nao ha bloqueio a reinstaurar) ---
   const secondCopy = await session.page.evaluate(() => {
     const beforeW = window.__e2e.writes.length;
     copiar();
-    return { beforeW, copyBlockedStillTrue: COPY_BLOCKED };
+    return { beforeW, alertStillActive: CRITICAL_ALERT_ACTIVE };
   });
   await flush();
-  secondCopy.writes = (await session.page.evaluate((prev) => window.__e2e.writes.length - prev.beforeW, secondCopy));
+  secondCopy.writes = await session.page.evaluate((prev) => window.__e2e.writes.length - prev.beforeW, secondCopy);
 
-  // --- 9. impressao/PDF sem excecao (com o bloqueio ativo e depois liberado) ---
+  // --- 9. impressao/PDF com alerta ativo: funciona e fica auditada ---
   const print = await session.page.evaluate(() => {
     let threw = null;
-    try {
-      imprimirDocumento();          // bloqueado -> deve apenas sinalizar, sem excecao
-      setCopyBlocked(false);
-      imprimirDocumento();          // liberado -> deve chamar window.print()
-    } catch (e) { threw = String((e && e.message) || e); }
-    return { threw, printCalls: window.__e2e.prints };
+    const beforeP = window.__e2e.prints;
+    try { imprimirDocumento(); } catch (e) { threw = String((e && e.message) || e); }
+    return { threw, beforeP };
   });
   await flush();
+  Object.assign(print, await session.page.evaluate((prev) => ({
+    printCalls: window.__e2e.prints - prev.beforeP,
+    auditMentionsPrint: /Impress/i.test(document.getElementById('audit-list').textContent || ''),
+  }), print));
 
   // --- 10. reiniciar sessao limpa estado/audit ---
   const reset = await session.page.evaluate(() => {
@@ -464,15 +382,16 @@ export async function runFullUiFlow(session) {
     return {
       outputEmpty: (document.getElementById('output-body').textContent || '') === '',
       auditEmpty: (document.getElementById('audit-list').textContent || '') === '',
-      copyBlocked: typeof COPY_BLOCKED !== 'undefined' ? COPY_BLOCKED : null,
-      overrideLogLength: typeof COPY_OVERRIDE_LOG !== 'undefined' ? COPY_OVERRIDE_LOG.length : null,
+      alertActive: typeof CRITICAL_ALERT_ACTIVE !== 'undefined' ? CRITICAL_ALERT_ACTIVE : null,
+      bannerVisible: (document.getElementById('critical-banner').className || '').includes('show'),
+      outputLogLength: typeof CRITICAL_OUTPUT_LOG !== 'undefined' ? CRITICAL_OUTPUT_LOG.length : null,
       outputCardHidden: document.getElementById('output-card').style.display === 'none',
     };
   });
 
   return {
     supported: true,
-    generation, cleanCopy, editUnderBlock, blocked, overrideCancelled, overrideConfirmed, secondCopy, print, reset,
+    generation, cleanCopy, editUnderAlert, alerted, copyWithAlert, secondCopy, print, reset,
     pageErrors: [...session.pageErrors],
     consoleErrors: [...session.consoleErrors],
   };

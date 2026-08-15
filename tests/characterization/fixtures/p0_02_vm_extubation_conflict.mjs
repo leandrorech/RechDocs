@@ -26,13 +26,13 @@ import { captureClinicalStateWithCopyEffect } from '../harness/capture-state.mjs
 import { EVIDENCE_KIND } from '../harness/compare-results.mjs';
 
 export const id = 'P0-02';
-export const description = 'Empate ventilatorio (VM ativa x extubado) — deteccao de conflito e efeito no fluxo de copia';
+export const description = 'Empate ventilatorio (VM ativa x extubado) — deteccao de conflito e efeito na sinalizacao critica';
 export const evidenceKind = EVIDENCE_KIND.DYNAMIC_E2E_EVIDENCE;
-export const expected = 'Conflito ventilatorio registrado em engine.conflitos; esse conflito deve propagar ate buildCriticalPendencies e bloquear a copia (wouldBlockCopy=true). Nenhum dos dois estados (VM ativa / extubado) deve ser escolhido silenciosamente.';
+export const expected = 'Conflito ventilatorio registrado em engine.conflitos; esse conflito deve propagar ate buildCriticalPendencies e disparar o alerta critico (wouldRaiseCriticalAlert=true). Nenhum dos dois estados (VM ativa / extubado) deve ser escolhido silenciosamente.';
 
 // alergias/leito preenchidos deliberadamente para isolar buildCriticalPendencies()
 // da UNICA fonte de pendencia relevante ao caso (o conflito ventilatorio) —
-// caso contrario, "ALERGIAS nao informadas" dispara wouldBlockCopy=true por
+// caso contrario, "ALERGIAS nao informadas" dispara wouldRaiseCriticalAlert=true por
 // um motivo nao relacionado, mascarando se o conflito de VM especificamente
 // foi ou nao capturado como pendencia critica.
 const BASE_FIELDS = { alergias: 'Nega alergias medicamentosas conhecidas.', leito: '10A' };
@@ -81,13 +81,13 @@ export async function runOn(session) {
   const failures = [];
   if (!symmetric.conflictDetected) {
     failures.push(`P0-02a (controle, simetrico) — nenhum conflito detectado: conflitos=${JSON.stringify(symmetric.conflitos)}.`);
-  } else if (!symmetric.copyEffect?.wouldBlockCopy) {
-    failures.push(`P0-02a (controle) — conflito detectado mas NAO bloqueia copia: copyEffect=${JSON.stringify(symmetric.copyEffect)}.`);
+  } else if (!symmetric.copyEffect?.wouldRaiseCriticalAlert) {
+    failures.push(`P0-02a (controle) — conflito detectado mas NAO dispara alerta critico: copyEffect=${JSON.stringify(symmetric.copyEffect)}.`);
   }
   if (!asymmetric.conflictDetected) {
     failures.push(
       `P0-02b (assimetrico "VM ativa" x "extubado") — nenhum conflito detectado; estado resolvido silenciosamente para "${asymmetric.silentlyResolved}". ` +
-      `copyEffect=${JSON.stringify(asymmetric.copyEffect)} (copia NAO bloqueada apesar da contradicao).`
+      `copyEffect=${JSON.stringify(asymmetric.copyEffect)} (nenhum alerta critico apesar da contradicao).`
     );
   }
 
@@ -102,12 +102,12 @@ export function classify({ baseline, reference, candidate }) {
   // Classificacao separada por subvariante, porque tem historico e causa raiz diferentes.
   const sub = (getVariant) => {
     const b = getVariant(baseline.observed), r = getVariant(reference.observed), c = getVariant(candidate.observed);
-    const bPass = b.conflictDetected && b.copyEffect?.wouldBlockCopy;
-    const rPass = r.conflictDetected && r.copyEffect?.wouldBlockCopy;
-    const cPass = c.conflictDetected && c.copyEffect?.wouldBlockCopy;
-    if (bPass && rPass && cPass) return { label: 'EXPECTED_CHANGE', rationale: 'Mecanismo de deteccao de empate funciona nos tres artefatos e efetivamente bloqueia a copia — comportamento correto confirmado dinamicamente.' };
+    const bPass = b.conflictDetected && b.copyEffect?.wouldRaiseCriticalAlert;
+    const rPass = r.conflictDetected && r.copyEffect?.wouldRaiseCriticalAlert;
+    const cPass = c.conflictDetected && c.copyEffect?.wouldRaiseCriticalAlert;
+    if (bPass && rPass && cPass) return { label: 'EXPECTED_CHANGE', rationale: 'Mecanismo de deteccao de empate funciona nos tres artefatos e efetivamente dispara o alerta critico — comportamento correto confirmado dinamicamente.' };
     if (!bPass && !rPass && !cPass) return { label: 'REFERENCE_BUG_REVEALED', rationale: 'Bug presente inclusive na referencia (fonte de correcoes deliberadas conhecidas) — achado novo, sem ID previo em REGRESSION_RISKS.md.' };
-    if (bPass && !cPass) return { label: 'REGRESSION', rationale: 'Baseline bloqueava corretamente e a candidata deixou de bloquear.' };
+    if (bPass && !cPass) return { label: 'REGRESSION', rationale: 'Baseline sinalizava corretamente e a candidata deixou de sinalizar.' };
     return { label: 'UNRESOLVED', rationale: 'Combinacao mista entre artefatos — revisar manualmente antes de reconciliar.' };
   };
   return {

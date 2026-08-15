@@ -23,11 +23,11 @@
 
 - **Comportamento anterior:** preview não editável ou com edição não integrada ao estado.
 - **Novo comportamento:** preview restaurado como editável.
-- **Risco clínico:** edição pode contornar rastreabilidade e bloqueio de cópia (ver R-01, R-07 em `reports/REGRESSION_RISKS.md`).
-- **Mitigação:** pendente de confirmação — verificar se alteração manual atualiza estado interno e reativa validações.
-- **Teste correspondente:** pendente.
-- **Resultado do teste:** pendente.
-- **Responsável pela decisão / aprovação humana:** pendente.
+- **Risco clínico:** edição pode contornar rastreabilidade (ver R-01/R-07 em `reports/REGRESSION_RISKS.md`).
+- **Mitigação:** contrato vigente não bloqueia a saída; o controle é a sinalização crítica, que **sobrevive à edição manual** — verificado dinamicamente.
+- **Teste correspondente:** `e2e_full_ui_flow.mjs` (cenários 8/8d) e `p0_03_copy_override_policy.mjs` (critério 5).
+- **Resultado do teste:** **VERIFIED** — ver entrada [CI-01 / R-01] abaixo.
+- **Responsável pela decisão / aprovação humana:** Leandro Rech (2026-08-15).
 
 ### [CI-02] Negrito estrutural de títulos
 
@@ -110,22 +110,57 @@
 - **Resultado do teste:** **RESOLVED** — candidata PASS (baseline e referência continuam FAIL); conflito registrado e `wouldBlockCopy=true`, mesmo formato de mensagem do caso simétrico.
 - **Responsável pela decisão / aprovação humana:** Leandro Rech.
 
-### [P0-03] Política de cópia com override auditável
+### [P0-03] Política de saída: sinalização crítica máxima, sem bloqueio
 
-- **Comportamento anterior (baseline e candidata até `53d7378`):** bloqueio **absoluto** — com pendência crítica, `copiar()` e `imprimirDocumento()` retornavam sem ação e não havia nenhuma forma de prosseguir deliberadamente. (Na referência v3.4.0 é pior: não existe bloqueio nenhum.)
-- **Novo comportamento (v3.4.1):** implementa `ALERTA → BLOQUEIO → "Copiar mesmo assim" → CONFIRMAÇÃO EXPLÍCITA → AUDIT LOG → CÓPIA`, conforme `reports/COPY_POLICY_CONTRACT.md`. Botão dedicado `#btn-copiar-mesmo-assim`, visível apenas sob bloqueio; `confirm()` exibindo o motivo real da pendência (lido de `#pending-list`, mesma fonte que bloqueou); registro em `COPY_OVERRIDE_LOG` + `#audit-list` com timestamp ISO e motivo.
-- **Escopo do override:** vale **somente para aquela operação de cópia**. `COPY_BLOCKED` nunca é alterado por este fluxo; a próxima tentativa volta a exigir o caminho completo. Nenhuma autorização é persistida em `localStorage`/`sessionStorage` nem em variável de escopo maior — o que persiste na sessão é apenas o **registro de auditoria**, que não libera nada. `reiniciarTudo()` limpa esse registro.
-- **Risco clínico:** cópia de documento com pendência não resolvida. Mitigado por: pendências permanecem visíveis, confirmação humana inequívoca é obrigatória, e a decisão fica auditável na sessão.
-- **Teste correspondente:** `tests/characterization/fixtures/p0_03_copy_override_policy.mjs` (7 cenários) e `tests/characterization/fixtures/e2e_full_ui_flow.mjs` (cenários 4 a 8, pelo caminho real da UI).
-- **Resultado do teste:** **IMPLEMENTED / VERIFIED** — itens 1 a 5 do contrato confirmados **dinamicamente** (antes os itens 4 e 5 eram marcados como não verificáveis).
-- **Itens `UNRESOLVED` do contrato que permanecem fora de escopo:** persistência do audit log entre gerações/reload, diferenciação por severidade de pendência, redação/UX definitiva, e se a mesma política vale para impressão. Não foram implementados nem testados — testá-los inventaria regra não decidida.
-- **Responsável pela decisão / aprovação humana:** Leandro Rech (contrato definido e aprovado em 2026-08-15).
+> **Contrato revisado em 2026-08-15 por decisão do produto.** A entrada anterior desta seção descrevia
+> bloqueio + override ("Copiar mesmo assim" + `confirm()` + audit log), implementado no commit
+> `53d7378`. **Esse contrato foi cancelado** — a premissa de que o sistema deveria impedir a saída
+> estava incorreta.
 
-### [CI-01 / R-01] ⚠ CONFLITO ABERTO — edição manual libera cópia sem confirmação nem auditoria
+- **Comportamento anterior (baseline v3.3.12-P1 e candidata até `53d7378`):** pendência crítica
+  bloqueava a saída. Na baseline, bloqueio absoluto (`copiar()`/`imprimirDocumento()` retornavam sem
+  ação); em `53d7378`, bloqueio com override confirmado e auditado. Na referência v3.4.0 não havia
+  nem bloqueio nem sinalização.
+- **Novo comportamento (v3.4.1):** `ALERTA CRÍTICO VISUAL → o usuário vê a inconsistência →
+  cópia/impressão permanecem liberadas`. Não existe estado em que copiar/imprimir fiquem
+  indisponíveis. Nenhuma confirmação é exigida para copiar.
+- **Sinalização (o que substitui o bloqueio):**
+  - banner grande e vermelho no topo do preview (`#critical-banner`), com o texto
+    *"⚠ Atenção — existem inconsistências/pendências críticas. Revise as informações antes de usar
+    este documento."*;
+  - lista concreta das pendências imediatamente abaixo (`#critical-banner-list`);
+  - aviso permanente junto aos botões Copiar/Imprimir (`#copy-warn`);
+  - regra `@media print` própria: **o aviso acompanha a impressão/PDF**;
+  - o alerta **sobrevive à edição manual** e só desaparece quando a condição que o gerou for
+    recalculada (nova geração sem pendências).
+- **Auditoria sem fricção:** `registrarSaidaComAlerta()` grava em `CRITICAL_OUTPUT_LOG` e no
+  `#audit-list` que a cópia/impressão ocorreu com alerta ativo — **depois** da ação, sem impedi-la e
+  sem exigir confirmação.
+- **Risco clínico:** documento usado com pendência não resolvida. Mitigação: a inconsistência é
+  impossível de ignorar (banner + lista + aviso nos botões + aviso impresso) e a saída fica
+  registrada. **A decisão de usar o documento é do médico, e o sistema não a impede.**
+- **Removido:** `COPY_BLOCKED`, `setCopyBlocked()`, `copiarComOverride()`,
+  `currentCopyBlockReason()`, `COPY_OVERRIDE_LOG` e o botão `#btn-copiar-mesmo-assim`.
+- **Detecção preservada integralmente:** `buildCriticalPendencies()`, `validateTraceability()`,
+  `validateUndeclaredTransformations()` e os conflitos do `ClinicalState` não foram alterados — mudou
+  a consequência, não a detecção.
+- **Teste correspondente:** `p0_03_copy_override_policy.mjs` (8 critérios, incluindo verificação de
+  que os símbolos do contrato antigo não reapareceram) e `e2e_full_ui_flow.mjs` (11 cenários).
+- **Resultado do teste:** **IMPLEMENTED / VERIFIED** — candidata PASS nas duas fixtures.
+- **Responsável pela decisão / aprovação humana:** Leandro Rech (decisão de contrato, 2026-08-15).
 
-- **Estado:** **BLOQUEADOR ABERTO — NÃO CORRIGIDO NESTA BRANCH.**
-- **Comportamento atual (herdado de `main`, commit `827126b` de 09/08/2026):** um listener global de `input` chama `setCopyBlocked(false)` a cada digitação em `#output-body` ou `#prefill-editor`. Medido dinamicamente: com pendência crítica ativa, uma única digitação leva `COPY_BLOCKED` de `true` para `false` e `copiar()` passa a escrever no clipboard, **sem confirmação e sem qualquer registro de auditoria**. Na pré-evolução iniciada com `baseBlocked=true`, o mesmo ocorre com `PREFILL_STATE.reviewed` permanecendo `false` — ou seja, sem passar por `confirmarRevisaoPreEvolucao()`.
-- **Por que é conflito, e não simplesmente bug:** o commit que introduziu esse listener descreve o comportamento como intencional ("release copy/print after manual edits"). Porém ele colide frontalmente com o contrato P0-03, decidido e aprovado depois, e com R-01 de `REGRESSION_RISKS.md`, `docs/REGRAS_CLINICAS.md` e os critérios de `AGENTS.md`. Também produz contradição interna no código: `onPreEvolutionEdit()` faz `setCopyBlocked(true)` no mesmo evento e é revertido pelo listener global, que executa depois (bubbling).
-- **Teste correspondente:** `tests/characterization/fixtures/e2e_full_ui_flow.mjs`, cenários 3 e 3b — **FAIL na candidata**, com evidência dinâmica registrada.
-- **Decisão necessária (humana, não autônoma):** ver seção "Decisão pendente" em `reports/REGRESSION_RISKS.md`.
-- **Responsável pela decisão / aprovação humana:** **PENDENTE.**
+### [CI-01 / R-01] Edição manual e sinalização crítica — RESOLVIDO
+
+- **Estado:** **✅ RESOLVIDO POR MUDANÇA DE CONTRATO** (2026-08-15).
+- **Problema identificado no release gate:** um listener global de `input` chamava
+  `setCopyBlocked(false)` a cada digitação em `#output-body`/`#prefill-editor`, liberando a saída sem
+  confirmação nem registro — bypass da política de cópia então vigente, confirmado dinamicamente.
+- **Resolução:** a decisão do produto eliminou a premissa. Sem bloqueio, não há bypass possível — a
+  saída já está sempre disponível por desenho. O requisito remanescente é que **a edição não apague a
+  sinalização crítica**; o listener foi alterado para não tocar no estado de alerta e passou a exibir
+  mensagem reforçando que as pendências continuam ativas.
+- **Verificado:** com alerta ativo, após um evento `input` no preview e no `prefill-editor`, o banner
+  permanece visível e `CRITICAL_ALERT_ACTIVE` permanece `true`; a cópia continua funcionando.
+- **Teste correspondente:** `p0_03_copy_override_policy.mjs` (critério 5) e `e2e_full_ui_flow.mjs`
+  (cenários 8 e 8d).
+- **Responsável pela decisão / aprovação humana:** Leandro Rech (decisão de contrato, 2026-08-15).

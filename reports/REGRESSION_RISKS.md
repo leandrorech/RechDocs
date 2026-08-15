@@ -8,14 +8,14 @@
 
 | ID | Severidade | Risco | Mecanismo | Controle exigido | Status |
 |---|---|---|---|---|---|
-| R-01 | Bloqueante | Edição contorna rastreabilidade e bloqueio de cópia. | `renderOutputDocument` substitui `renderTraceableOutput`; referência não tem `setCopyBlocked`. | Editor derivado do preview seguro; revalidar após cada edição; cópia depende de estado, não do botão visual. | **⛔ CONFIRMADO ABERTO** — ver "Decisão pendente" abaixo |
+| R-01 | Bloqueante | Edição contorna rastreabilidade e bloqueio de cópia. | `renderOutputDocument` substitui `renderTraceableOutput`; referência não tem `setCopyBlocked`. | Editor derivado do preview seguro; revalidar após cada edição; cópia depende de estado, não do botão visual. | **✅ RESOLVIDO POR MUDANÇA DE CONTRATO** — não existe mais bloqueio a contornar; o requisito agora é que a edição não apague a sinalização, e isso é testado (E2E-01 cenário 8) |
 | R-02 | Bloqueante | Parâmetros ventilatórios de episódio antigo reaparecem após extubação/reintubação. | Port de `ClinicalState`/`chronoScore` da referência. | Não portar motor da referência; teste extubação → reintubação sem herança. | **✅ RESOLVED** (P0-01, commit `abde96c`) |
 | R-17 | Bloqueante | Empate "VM ativa" × "extubado" resolvido silenciosamente, sem conflito e sem bloquear cópia. | `comparaPrecedencia()` desempata por `EXECUTED_VERBS`; "extubado" bate num radical, "VM ativa" não — decide antes de alcançar o critério de empate. | Canonicalizar os dois lados como estado declarado antes de comparar, sem alterar o comparador genérico. | **✅ RESOLVED** (commit `fba9b01`) |
 | R-03 | Bloqueante | Plano futuro passa a ação executada. | Regex `\b` da referência falha com acentos e gera apenas aviso. | Preservar `futurePlanWarnings` Unicode e teste com “amanhã”. | SEM TESTE |
 | R-04 | Alto | Insulina aparece como sedação; antitrombótico desaparece ou é removido como redundante. | `fSedacao(sedacao, outras_infusoes)` e limpeza estrutural do ramo. | Renderizadores separados e fixtures farmacológicas. | SEM TESTE |
 | R-05 | Alto | Compactação perde significado temporal/unidade ou duplica exames. | `buildExamesCompactos` apenas agrupa na ordem do array. | Normalização determinística, chave de deduplicação definida, ordenação por data válida e preservação literal. | ✅ VERIFIED (CI-05, 6/6) |
 | R-06 | Alto | Regex de pré-evolução apaga seção errada ou falha silenciosamente. | `preparePreEvolutionText` depende de cabeçalhos exatos e intervalos guloso. | Operar sobre modelo de seções/AST simples, com asserts de limites; fallback não destrutivo. | SEM TESTE |
-| R-07 | Alto | Alteração manual não aparece na trilha e não bloqueia saída. | `contentEditable` modifica DOM sem atualizar estado. | Capturar diff do editor, marcar como “edição humana pós-reconciliação”, exigir confirmação. | ⛔ ABERTO (mesmo mecanismo do R-01) |
+| R-07 | Alto | Alteração manual não aparece na trilha e não bloqueia saída. | `contentEditable` modifica DOM sem atualizar estado. | Capturar diff do editor, marcar como “edição humana pós-reconciliação”, exigir confirmação. | ✅ RESOLVIDO POR MUDANÇA DE CONTRATO (ver R-01) |
 | R-08 | Alto | “Limpar sessão” preserva chave/segredo em computador compartilhado. | `reiniciarTudo` deliberadamente mantém configuração. | Separar “novo caso” de “encerrar sessão completa”; testar ambos. | SEM TESTE (parcial: reset verificado no E2E-01 cenário 10) |
 | R-09 | Alto | P/F volta a rotular SDRA isoladamente; limites K/Mg regressam. | Port amplo de `runValidations`. | Proibir substituição; testes de texto/limiares. | SEM TESTE |
 | R-10 | Alto | Unidades duplicadas ou convertidas sem base. | Renderizadores da referência não contêm normalizadores P1. | Preservar funções baseline e testar entradas legadas. | SEM TESTE |
@@ -26,38 +26,30 @@
 | R-15 | Médio | Qwen recebe imagem em alias não multimodal. | Referência anuncia `supportsVision:true`. | Preservar `false` até modelo/endpoint validado. | SEM TESTE |
 | R-16 | Médio | Cópia e impressão divergem do preview. | Estilos/destaques não fazem parte de `textContent`; edição altera DOM. | Testar texto copiado, texto impresso e conteúdo visível contra a mesma fonte. | SEM TESTE |
 
-## ⛔ Decisão pendente — R-01 / R-07 (bloqueia o release da v3.4.1)
+## ✅ R-01 / R-07 — resolvido por decisão de contrato (2026-08-15)
 
-**Confirmado dinamicamente em 2026-08-15** (`tests/characterization/fixtures/e2e_full_ui_flow.mjs`, cenários 3 e 3b).
+O release gate de 2026-08-15 confirmou dinamicamente que um listener global de `input` chamava
+`setCopyBlocked(false)` a cada digitação no preview, liberando a saída sem confirmação nem registro —
+um bypass da política de cópia então vigente.
 
-Um listener global de `input` em `output/RechDocs_v3.4.1.html` (~linha 1207) chama `setCopyBlocked(false)` a cada digitação em `#output-body` ou `#prefill-editor`:
+**A decisão do produto eliminou a premissa do problema.** O RechDocs não bloqueia mais cópia nem
+impressão em nenhuma circunstância (ver `reports/COPY_POLICY_CONTRACT.md`, contrato revisado). Sem
+bloqueio, não há bypass possível: a saída já está sempre disponível, por desenho.
 
-```js
-document.addEventListener('input',(ev)=>{
-  const el=ev.target;
-  if(el && (el.id==='output-body' || el.id==='prefill-editor')){
-    setCopyBlocked(false);
-    ...
-```
+O requisito que **sobrevive** dessa análise, e que agora é testado explicitamente, é outro: a edição
+manual **não pode apagar a sinalização crítica**. O listener foi alterado para não tocar no estado de
+alerta, e passou a exibir mensagem reforçando que as pendências continuam ativas.
 
-Medições:
+Verificação (candidata, 2026-08-15):
 
-| Situação | Antes | Depois de 1 evento `input` | Registro em audit log |
-|---|---|---|---|
-| Pendência crítica ativa | `COPY_BLOCKED=true` | `false`; `copiar()` escreve no clipboard | nenhum |
-| Pré-evolução `baseBlocked=true` | `COPY_BLOCKED=true`, `reviewed=false` | `false`; `reviewed` continua `false`; `copiar()` escreve | nenhum |
+| Cenário | Antes da edição | Depois de 1 evento `input` |
+|---|---|---|
+| Alerta crítico ativo (preview) | banner visível, alerta ativo | **banner visível, alerta ativo**, cópia funcional |
+| Pré-evolução com pendência de reconciliação | banner visível, alerta ativo | **banner visível, alerta ativo** |
 
-Consequências: (1) contorna a política P0-03 sem confirmação nem auditoria — digitar um caractere substitui todo o fluxo "Copiar mesmo assim"; (2) neutraliza `onPreEvolutionEdit()`, que faz `setCopyBlocked(true)` no mesmo evento e é revertido pelo listener global na fase de bubbling; (3) permite contornar `confirmarRevisaoPreEvolucao()`.
-
-**Procedência:** introduzido em `main` pelo commit `827126b` (09/08/2026), cuja mensagem descreve o comportamento como intencional — *"release copy/print after manual edits"*. **Não é regressão desta branch.** É uma decisão humana anterior que colide com o contrato P0-03, decidido depois.
-
-**Opções (a escolha é do responsável clínico, não pode ser tomada autonomamente):**
-
-- **A — Prevalece o P0-03:** remover a liberação automática do listener; a edição passa a *manter* o bloqueio, e liberar exige "Copiar mesmo assim" (com confirmação + auditoria) ou `confirmarRevisaoPreEvolucao()`. Restaura R-01/R-07 e elimina a contradição com `onPreEvolutionEdit()`. Custo: o usuário passa a precisar de um clique extra após editar.
-- **B — Prevalece a liberação por edição, mas auditada:** manter a liberação, porém exigir confirmação explícita na primeira edição sob pendência e registrar a decisão no audit log. Mantém a fluidez e recupera a rastreabilidade; ainda diverge da regra "cópia depende de estado, não de um gesto de UI".
-- **C — Manter como está:** aceitar formalmente que edição manual libera cópia sem confirmação nem registro. Exige atualizar R-01/R-07, `docs/REGRAS_CLINICAS.md`, `AGENTS.md` e `COPY_POLICY_CONTRACT.md` para refletir a decisão — caso contrário a documentação permanece contraditória com o código.
-
-Enquanto não houver decisão, `E2E-01` permanece FAIL e o release gate permanece **BLOCKED**.
+Fixtures: `p0_03_copy_override_policy.mjs` (critério 5) e `e2e_full_ui_flow.mjs` (cenário 8/8d).
+A fixture P0-03 também verifica que os símbolos do contrato antigo (`setCopyBlocked()`,
+`copiarComOverride()`, `COPY_BLOCKED`, `#btn-copiar-mesmo-assim`) **não reapareceram** no artefato.
 
 ## Conflitos documentais
 

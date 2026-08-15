@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-15T02:26:52.000Z",
+  "generatedAt": "2026-08-15T23:41:26.674Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -19,8 +19,8 @@
       "key": "candidate",
       "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
       "path": "output/RechDocs_v3.4.1.html",
-      "sha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4",
-      "bytes": 229123
+      "sha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d",
+      "bytes": 232640
     }
   },
   "results": {
@@ -78,14 +78,14 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
       }
     },
     "P0-02": {
       "baseline": {
         "pass": false,
         "failures": [
-          "P0-02b (assimetrico \"VM ativa\" x \"extubado\") — nenhum conflito detectado; estado resolvido silenciosamente para \"extubado (implicito, sem sinalizacao)\". copyEffect={\"supported\":true,\"pendencies\":[],\"wouldBlockCopy\":false} (copia NAO bloqueada apesar da contradicao)."
+          "P0-02b (assimetrico \"VM ativa\" x \"extubado\") — nenhum conflito detectado; estado resolvido silenciosamente para \"extubado (implicito, sem sinalizacao)\". copyEffect={\"supported\":true,\"pendencies\":[],\"wouldRaiseCriticalAlert\":false} (nenhum alerta critico apesar da contradicao)."
         ],
         "observed": {
           "symmetric": {
@@ -105,7 +105,7 @@
                 "VM sem PaO₂/gasometria estruturada para P/F.",
                 "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
               ],
-              "wouldBlockCopy": true
+              "wouldRaiseCriticalAlert": true
             },
             "pageErrors": [],
             "consoleErrors": []
@@ -118,7 +118,7 @@
             "copyEffect": {
               "supported": true,
               "pendencies": [],
-              "wouldBlockCopy": false
+              "wouldRaiseCriticalAlert": false
             },
             "pageErrors": [],
             "consoleErrors": []
@@ -129,7 +129,7 @@
       "reference": {
         "pass": false,
         "failures": [
-          "P0-02b (assimetrico \"VM ativa\" x \"extubado\") — nenhum conflito detectado; estado resolvido silenciosamente para \"extubado (implicito, sem sinalizacao)\". copyEffect={\"supported\":true,\"pendencies\":[],\"wouldBlockCopy\":false} (copia NAO bloqueada apesar da contradicao)."
+          "P0-02b (assimetrico \"VM ativa\" x \"extubado\") — nenhum conflito detectado; estado resolvido silenciosamente para \"extubado (implicito, sem sinalizacao)\". copyEffect={\"supported\":true,\"pendencies\":[],\"wouldRaiseCriticalAlert\":false} (nenhum alerta critico apesar da contradicao)."
         ],
         "observed": {
           "symmetric": {
@@ -150,7 +150,7 @@
                 "VM sem PaO₂/gasometria estruturada para P/F.",
                 "Existe alerta crítico bloqueante no card de alertas."
               ],
-              "wouldBlockCopy": true
+              "wouldRaiseCriticalAlert": true
             },
             "pageErrors": [],
             "consoleErrors": []
@@ -163,7 +163,7 @@
             "copyEffect": {
               "supported": true,
               "pendencies": [],
-              "wouldBlockCopy": false
+              "wouldRaiseCriticalAlert": false
             },
             "pageErrors": [],
             "consoleErrors": []
@@ -192,7 +192,7 @@
                 "VM sem PaO₂/gasometria estruturada para P/F.",
                 "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
               ],
-              "wouldBlockCopy": true
+              "wouldRaiseCriticalAlert": true
             },
             "pageErrors": [],
             "consoleErrors": []
@@ -214,121 +214,33 @@
                 "VM sem PaO₂/gasometria estruturada para P/F.",
                 "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
               ],
-              "wouldBlockCopy": true
+              "wouldRaiseCriticalAlert": true
             },
             "pageErrors": [],
             "consoleErrors": []
           }
         },
-        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
       }
     },
     "P0-03": {
       "baseline": {
-        "pass": false,
-        "failures": [
-          "Item 3 (afordancia dedicada \"Copiar mesmo assim\") ausente — nenhum id/rotulo de override de copia encontrado no HTML.",
-          "Itens 4 e 5 (confirmacao explicita / auditabilidade do override) nao verificaveis: dependem do item 3 existir primeiro."
-        ],
+        "pass": null,
+        "failures": [],
         "observed": {
-          "staticCheck": {
-            "hasBlockMechanism": true,
-            "hasDedicatedOverrideId": false,
-            "hasGenericMesmoAssimNearCopiar": false,
-            "pageErrors": [],
-            "consoleErrors": []
-          },
-          "blockedFlow": {
-            "writes": [],
-            "btnDisabledBefore": true,
-            "statusText": "Cópia bloqueada: resolva as pendências críticas e gere novamente o documento.",
-            "threwError": null,
-            "pageErrors": [],
-            "consoleErrors": []
-          },
-          "unblockedFlow": {
-            "writes": [
-              "TEXTO CLINICO SEM PENDENCIA (teste P0-03)"
-            ],
-            "threw": null,
-            "overrideVisible": null,
-            "pageErrors": [],
-            "consoleErrors": []
-          },
-          "overrideFlow": {
-            "supported": false
-          },
-          "items": {
-            "item1": true,
-            "item2": true,
-            "item3": false,
-            "item4": null,
-            "item5": null
-          },
-          "tests": {
-            "test1": true,
-            "test3": null,
-            "test4": null,
-            "test5": null,
-            "test6": null,
-            "test7": null
-          }
+          "supported": false,
+          "pageErrors": [],
+          "consoleErrors": []
         },
         "artifactSha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667"
       },
       "reference": {
-        "pass": false,
-        "failures": [
-          "Item 1 / Teste 2 (bloqueio inicial efetivo) nao confirmado: hasBlockMechanism=false, writes=[\"\"], threw=null.",
-          "Item 2 (pendencia visivel) nao confirmado: statusText=\"\".",
-          "Item 3 (afordancia dedicada \"Copiar mesmo assim\") ausente — nenhum id/rotulo de override de copia encontrado no HTML.",
-          "Itens 4 e 5 (confirmacao explicita / auditabilidade do override) nao verificaveis: dependem do item 3 existir primeiro."
-        ],
+        "pass": null,
+        "failures": [],
         "observed": {
-          "staticCheck": {
-            "hasBlockMechanism": false,
-            "hasDedicatedOverrideId": false,
-            "hasGenericMesmoAssimNearCopiar": false,
-            "pageErrors": [],
-            "consoleErrors": []
-          },
-          "blockedFlow": {
-            "writes": [
-              ""
-            ],
-            "btnDisabledBefore": false,
-            "statusText": "",
-            "threwError": null,
-            "pageErrors": [],
-            "consoleErrors": []
-          },
-          "unblockedFlow": {
-            "writes": [
-              "TEXTO CLINICO SEM PENDENCIA (teste P0-03)"
-            ],
-            "threw": null,
-            "overrideVisible": null,
-            "pageErrors": [],
-            "consoleErrors": []
-          },
-          "overrideFlow": {
-            "supported": false
-          },
-          "items": {
-            "item1": false,
-            "item2": false,
-            "item3": false,
-            "item4": null,
-            "item5": null
-          },
-          "tests": {
-            "test1": true,
-            "test3": null,
-            "test4": null,
-            "test5": null,
-            "test6": null,
-            "test7": null
-          }
+          "supported": false,
+          "pageErrors": [],
+          "consoleErrors": []
         },
         "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
       },
@@ -336,71 +248,38 @@
         "pass": true,
         "failures": [],
         "observed": {
-          "staticCheck": {
-            "hasBlockMechanism": true,
-            "hasDedicatedOverrideId": true,
-            "hasGenericMesmoAssimNearCopiar": true,
-            "pageErrors": [],
-            "consoleErrors": []
+          "supported": true,
+          "withPending": {
+            "bannerVisible": true,
+            "bannerClass": "critical-banner show",
+            "bannerTitle": "⚠ Atenção — existem inconsistências/pendências críticas. Revise as informações antes de usar este documento.",
+            "bannerMentionsAtencao": true,
+            "bannerListText": "□ Pendencia critica sintetica A.\n□ Pendencia critica sintetica B.",
+            "copyWarnVisible": true,
+            "copyButtonDisabled": false,
+            "copyWrites": 1,
+            "copyConfirms": 0,
+            "printThrew": null,
+            "printCalls": 1,
+            "auditText": "⚠ Cópia realizada em 2026-08-15T23:41:25.514Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B.\n⚠ Impressão/PDF realizada em 2026-08-15T23:41:25.514Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B."
           },
-          "blockedFlow": {
-            "writes": [],
-            "btnDisabledBefore": true,
-            "statusText": "Cópia bloqueada: resolva as pendências críticas e gere novamente o documento.",
-            "threwError": null,
-            "pageErrors": [],
-            "consoleErrors": []
+          "afterEdit": {
+            "bannerStillVisible": true,
+            "alertStillActive": true,
+            "copyStillWorks": true
           },
-          "unblockedFlow": {
-            "writes": [
-              "TEXTO CLINICO SEM PENDENCIA (teste P0-03)"
-            ],
-            "threw": null,
-            "overrideVisible": false,
-            "pageErrors": [],
-            "consoleErrors": []
+          "noPending": {
+            "bannerVisible": false,
+            "copyWarnVisible": false,
+            "copyButtonDisabled": false,
+            "copyWrites": 1
           },
-          "overrideFlow": {
-            "supported": true,
-            "confirmCalls": [
-              "Há pendência(s) crítica(s) não resolvida(s):\n\nPendencia critica sintetica para teste P0-03.\n\nCopiar mesmo assim registra esta decisão no log de auditoria da sessão e vale apenas para esta cópia — a próxima tentativa volta a ficar bloqueada.\n\nConfirma que revisou e deseja copiar mesmo assim?",
-              "Há pendência(s) crítica(s) não resolvida(s):\n\nPendencia critica sintetica para teste P0-03.\n\nCopiar mesmo assim registra esta decisão no log de auditoria da sessão e vale apenas para esta cópia — a próxima tentativa volta a ficar bloqueada.\n\nConfirma que revisou e deseja copiar mesmo assim?"
-            ],
-            "threwNormalBlocked": null,
-            "writesAfterBlockedNormalCopy": 0,
-            "statusAfterBlockedNormalCopy": "Cópia bloqueada: resolva as pendências críticas e gere novamente o documento.",
-            "threwCancel": null,
-            "writesAfterCancel": 0,
-            "auditListAfterCancel": "",
-            "statusAfterCancel": "Override de cópia cancelado. O bloqueio permanece.",
-            "threwConfirm": null,
-            "writesAfterConfirm": 1,
-            "auditListAfterConfirm": "⚠ Override de cópia em 2026-08-15T02:26:50.695Z — pendência(s) ignorada(s) por decisão humana: Pendencia critica sintetica para teste P0-03.",
-            "auditCardShownAfterConfirm": true,
-            "copyBlockedAfterConfirm": true,
-            "statusAfterConfirm": "Documento copiado mesmo com pendências — override registrado no log de auditoria desta sessão.",
-            "threwSecondNormal": null,
-            "writesAfterSecondNormal": 1,
-            "pageErrors": [],
-            "consoleErrors": []
-          },
-          "items": {
-            "item1": true,
-            "item2": true,
-            "item3": true,
-            "item4": true,
-            "item5": true
-          },
-          "tests": {
-            "test1": true,
-            "test3": true,
-            "test4": true,
-            "test5": true,
-            "test6": true,
-            "test7": true
-          }
+          "legacySymbols": [],
+          "noBlockingMechanism": true,
+          "pageErrors": [],
+          "consoleErrors": []
         },
-        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
       }
     },
     "CI-05": {
@@ -437,7 +316,7 @@
           "unchanged": true,
           "sameReference": true
         },
-        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
       }
     },
     "E2E-01": {
@@ -462,11 +341,8 @@
         "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
       },
       "candidate": {
-        "pass": false,
-        "failures": [
-          "Cenario 3 (R-01, SEGURANCA): com pendencia critica ativa, uma edicao manual no preview liberou a copia sozinha (COPY_BLOCKED passou de true para false), sem confirmacao explicita e sem registro no audit log (audit=\"\"). Isso contorna a politica de copia do P0-03: copiar() apos a edicao escreveu 1 vez(es).",
-          "Cenario 3b (R-01, SEGURANCA): na pre-evolucao iniciada com pendencia bloqueante (baseBlocked=true), uma edicao no prefill-editor liberou copiar() sem passar por confirmarRevisaoPreEvolucao() (PREFILL_STATE.reviewed=false) e sem audit log — onPreEvolutionEdit() faz setCopyBlocked(true), mas o listener global de 'input' executa depois e reverte para false."
-        ],
+        "pass": true,
+        "failures": [],
         "observed": {
           "supported": true,
           "generation": {
@@ -474,61 +350,65 @@
             "outputTextLength": 1227,
             "statusText": "Documento gerado — confira alertas/auditoria acima antes de assinar.",
             "pendingText": "",
-            "copyBlockedAfterGeneration": false,
+            "criticalAlertAfterGeneration": false,
+            "bannerVisible": false,
+            "copyButtonDisabled": false,
             "pageErrors": []
           },
           "cleanCopy": {
             "before": 0,
             "writes": 1
           },
-          "editUnderBlock": {
-            "copyBlockedBefore": true,
-            "copyBlockedAfterEdit": false,
-            "auditAfterEdit": "",
+          "editUnderAlert": {
+            "alertBefore": true,
+            "bannerBefore": true,
+            "alertAfterEdit": true,
+            "bannerAfterEdit": true,
+            "warnAfterEdit": true,
+            "copyDisabledAfterEdit": false,
             "writesAfterEdit": 1,
-            "prefillBypass": true,
-            "prefillReviewed": false
+            "prefillAlertSurvives": true
           },
-          "blocked": {
-            "before": 3,
-            "copyBlocked": true,
-            "overrideButtonVisible": true,
-            "pendingText": "Pendencia critica sintetica de teste E2E.",
-            "writes": 0
+          "alerted": {
+            "before": 2,
+            "alertActive": true,
+            "bannerVisible": true,
+            "bannerListText": "□ Pendencia critica sintetica de teste E2E.",
+            "copyWarnVisible": true,
+            "copyButtonDisabled": false
           },
-          "overrideCancelled": {
-            "beforeW": 3,
+          "copyWithAlert": {
+            "beforeW": 2,
             "beforeC": 0,
-            "writes": 0,
-            "confirmCalled": true,
-            "auditText": ""
-          },
-          "overrideConfirmed": {
-            "beforeW": 3,
             "writes": 1,
-            "auditText": "⚠ Override de cópia em 2026-08-15T02:26:51.903Z — pendência(s) ignorada(s) por decisão humana: Pendencia critica sintetica de teste E2E.",
-            "auditCardVisible": true
+            "confirms": 0,
+            "auditText": "⚠ Cópia realizada em 2026-08-15T23:41:26.580Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica de teste E2E.",
+            "auditCardVisible": true,
+            "alertStillActive": true
           },
           "secondCopy": {
-            "beforeW": 4,
-            "copyBlockedStillTrue": true,
-            "writes": 0
+            "beforeW": 3,
+            "alertStillActive": true,
+            "writes": 1
           },
           "print": {
             "threw": null,
-            "printCalls": 1
+            "beforeP": 0,
+            "printCalls": 1,
+            "auditMentionsPrint": true
           },
           "reset": {
             "outputEmpty": true,
             "auditEmpty": true,
-            "copyBlocked": false,
-            "overrideLogLength": 0,
+            "alertActive": false,
+            "bannerVisible": false,
+            "outputLogLength": 0,
             "outputCardHidden": true
           },
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
       }
     }
   },
@@ -540,7 +420,7 @@
     "P0-02": {
       "P0-02a": {
         "label": "EXPECTED_CHANGE",
-        "rationale": "Mecanismo de deteccao de empate funciona nos tres artefatos e efetivamente bloqueia a copia — comportamento correto confirmado dinamicamente."
+        "rationale": "Mecanismo de deteccao de empate funciona nos tres artefatos e efetivamente dispara o alerta critico — comportamento correto confirmado dinamicamente."
       },
       "P0-02b": {
         "label": "UNRESOLVED",
@@ -549,15 +429,15 @@
     },
     "P0-03": {
       "label": "EXPECTED_CHANGE",
-      "rationale": "baseline: bloqueio inicial presente, mas sem override deliberado/auditavel completo (itens 3-5) — politica pendente de implementacao. reference: nem o bloqueio inicial (item 1) esta implementado — lacuna mais ampla que so a falta de override. candidate: politica completa (bloqueio + override com confirmacao + audit log + revalidacao apos a operacao) implementada e confirmada dinamicamente."
+      "rationale": "Candidata implementa o contrato vigente: alerta critico visivel e maximo, sem qualquer bloqueio de copia/impressao. baseline e referencia sao N/A (nao possuem o mecanismo de alerta desta versao); a baseline tinha bloqueio absoluto e a referencia nao tinha nem bloqueio nem sinalizacao — nenhuma das duas atende ao contrato atual."
     },
     "CI-05": {
       "label": "EXPECTED_CHANGE",
       "rationale": "Baseline nao tem essa funcao (N/A, esperado). reference: 5 caso(s) com falha — implementacao estruturalmente diferente da candidata (sem unidade, sem dedupe, agrupamento so por tipo), nao um defeito por criterio proprio; FAIL aqui reflete incompatibilidade de contrato entre as duas funcoes homonimas, nao um bug da referencia. candidate: todos os 6 casos OK, confirmando os 6 casos minimos descritos em CHANGE_IMPACT.md CI-05."
     },
     "E2E-01": {
-      "label": "REGRESSION",
-      "rationale": "Fluxo real de UI falhou na candidata — investigar antes de liberar release."
+      "label": "EXPECTED_CHANGE",
+      "rationale": "Candidata percorre o fluxo real de UI ponta a ponta sem excecao, com sinalizacao critica maxima e sem qualquer bloqueio de copia/impressao. baseline/referencia sao N/A por nao possuirem o mecanismo de alerta desta versao."
     }
   }
 }

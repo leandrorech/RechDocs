@@ -1,126 +1,98 @@
-// P0-03 — politica de copia com override auditavel.
+// P0-03 — politica de copia: SINALIZACAO MAXIMA, SEM BLOQUEIO.
 //
-// Testa os 5 itens "Decidido" de reports/COPY_POLICY_CONTRACT.md, agora com evidencia dinamica
-// real para os itens 4 e 5 (antes marcados como `null`/nao verificaveis) — clica no fluxo completo
-// dentro da pagina real: bloqueio -> override cancelado -> override confirmado -> audit log ->
-// nova tentativa volta a bloquear. Nao testa os itens UNRESOLVED do contrato (persistencia do
-// audit log entre geracoes de documento, diferenciacao por severidade, UX exata, impressao) —
-// testar isso inventaria regra que ainda nao foi decidida.
-import { captureCopyPolicyStatic, captureCopyFlow, captureCopyUnblockedFlow, captureCopyOverrideFlow } from '../harness/capture-state.mjs';
+// Contrato vigente (reports/COPY_POLICY_CONTRACT.md, revisado em 2026-08-15):
+//   ALERTA CRITICO VISUAL -> usuario ve a inconsistencia -> copia/impressao PERMANECEM LIBERADAS.
+//
+// O contrato anterior (bloqueio + "Copiar mesmo assim" + confirm() obrigatorio) foi CANCELADO por
+// decisao do produto. Esta fixture testa o contrato atual e, deliberadamente, tambem verifica a
+// AUSENCIA dos mecanismos de bloqueio — se eles reaparecerem, e regressao.
+//
+// Nao testa os itens UNRESOLVED do contrato (persistencia do log entre geracoes, resolucao granular
+// do alerta, diferenciacao por severidade) — testar isso inventaria regra nao decidida.
+import { captureCriticalAlertPolicy } from '../harness/capture-state.mjs';
 import { EVIDENCE_KIND } from '../harness/compare-results.mjs';
 
 export const id = 'P0-03';
-export const description = 'Politica de copia: bloqueio inicial visivel + override deliberado auditavel (reports/COPY_POLICY_CONTRACT.md)';
-export const evidenceKind = EVIDENCE_KIND.DYNAMIC_E2E_EVIDENCE; // complementado por evidencia estatica de captureCopyPolicyStatic
+export const description = 'Politica de copia: alerta critico visivel e copia/impressao SEMPRE liberadas (reports/COPY_POLICY_CONTRACT.md)';
+export const evidenceKind = EVIDENCE_KIND.DYNAMIC_E2E_EVIDENCE;
 
 export const expected = [
-  '1. Conflito critico impede inicialmente a copia inadvertida (mecanismo de bloqueio presente e efetivo).',
-  '2. Conflito/pendencia fica visivel ao usuario (mensagem de status/pending-card, nao suprimido).',
-  '3. Existe acao deliberada equivalente a "Copiar mesmo assim".',
-  '4. Essa acao exige confirmacao explicita (dinamico: confirm() e chamado; cancelar nao copia).',
-  '5. A ocorrencia do override e auditavel durante a sessao (dinamico: audit log recebe timestamp+motivo so apos confirmar).',
-  'Extra: sem pendencia, copiar() funciona normalmente sem exigir override; apos um override confirmado, uma nova tentativa de copia normal volta a bloquear (override vale so para aquela operacao).',
+  '1. Pendencia critica detectada produz banner critico visivel.',
+  '2. Lista concreta das pendencias visivel sob o banner.',
+  '3. "Copiar tudo" habilitado e funcional mesmo com pendencia.',
+  '4. "Imprimir / PDF" funcional mesmo com pendencia, sem excecao.',
+  '5. Editar o texto nao remove o alerta por si so.',
+  '6. Copia com alerta ativo funciona e nao exige confirmacao.',
+  '7. Audit log registra que a saida ocorreu com alerta critico ativo.',
+  '8. Nao existe mecanismo de bloqueio nem fluxo de override (nada a contornar).',
 ].join(' ');
 
-const PENDING_REASON = 'Pendencia critica sintetica para teste P0-03.';
+const PENDING = ['Pendencia critica sintetica A.', 'Pendencia critica sintetica B.'];
 
 export async function runOn(session) {
-  const staticCheck = await captureCopyPolicyStatic(session);
-  const blockedFlow = await captureCopyFlow(session, { copyBlocked: true });
-  const unblockedFlow = await captureCopyUnblockedFlow(session);
+  const obs = await captureCriticalAlertPolicy(session, { pendencies: PENDING });
+
+  if (!obs.supported) {
+    // baseline/referencia nao possuem o mecanismo de alerta critico desta versao.
+    return { pass: null, failures: [], observed: obs };
+  }
 
   const failures = [];
+  const check = (cond, msg) => { if (!cond) failures.push(msg); };
 
-  // Teste 1 (sem pendencia -> copia normalmente, sem exigir override).
-  const test1 = unblockedFlow.writes.length === 1 && !unblockedFlow.threw;
-  if (!test1) {
-    failures.push(`Teste 1 (sem pendencia, copia normal) falhou: writes=${JSON.stringify(unblockedFlow.writes)}, threw=${unblockedFlow.threw}.`);
-  }
+  check(obs.withPending.bannerVisible === true,
+    `Criterio 1 (banner critico visivel): banner nao apareceu com pendencia ativa (className="${obs.withPending.bannerClass}").`);
 
-  // Item 1 / Teste 2 (com pendencia critica -> copia bloqueada).
-  const item1 = staticCheck.hasBlockMechanism && blockedFlow.writes.length === 0 && !blockedFlow.threwError;
-  if (!item1) {
-    failures.push(`Item 1 / Teste 2 (bloqueio inicial efetivo) nao confirmado: hasBlockMechanism=${staticCheck.hasBlockMechanism}, writes=${JSON.stringify(blockedFlow.writes)}, threw=${blockedFlow.threwError}.`);
-  }
-  const item2 = !!blockedFlow.statusText && blockedFlow.statusText.trim().length > 0;
-  if (!item2) {
-    failures.push(`Item 2 (pendencia visivel) nao confirmado: statusText="${blockedFlow.statusText}".`);
-  }
-  const item3 = staticCheck.hasDedicatedOverrideId;
-  if (!item3) {
-    failures.push('Item 3 (afordancia dedicada "Copiar mesmo assim") ausente — nenhum id/rotulo de override de copia encontrado no HTML.');
-  }
+  check(obs.withPending.bannerMentionsAtencao === true,
+    `Criterio 1b: banner nao contem o texto de atencao exigido pelo contrato (titulo="${obs.withPending.bannerTitle}").`);
 
-  let overrideFlow = { supported: false };
-  let item4 = null, item5 = null;
-  let test3 = null, test4 = null, test5 = null, test6 = null, test7 = null;
+  check(PENDING.every((p) => obs.withPending.bannerListText.includes(p)),
+    `Criterio 2 (lista de pendencias visivel): lista nao contem todas as pendencias. Observado: "${obs.withPending.bannerListText}".`);
 
-  if (!item3) {
-    failures.push('Itens 4 e 5 (confirmacao explicita / auditabilidade do override) nao verificaveis: dependem do item 3 existir primeiro.');
-  } else {
-    overrideFlow = await captureCopyOverrideFlow(session, { pendingReason: PENDING_REASON });
-    if (!overrideFlow.supported) {
-      failures.push('Item 3 indicou afordancia de override no HTML, mas copiarComOverride() nao existe como funcao — inconsistencia entre marcacao estatica e implementacao.');
-    } else {
-      // Teste 3 / item 4a: "Copiar mesmo assim" pede confirmacao (confirm() chamado).
-      test3 = overrideFlow.confirmCalls.length >= 1;
-      if (!test3) failures.push('Teste 3 (override pede confirmacao) falhou: confirm() nao foi chamado.');
+  check(obs.withPending.copyButtonDisabled === false,
+    `Criterio 3 (copiar habilitado): botao "Copiar tudo" esta desabilitado com pendencia ativa — o contrato proibe bloqueio.`);
 
-      // Teste 4: cancelar a confirmacao -> nao copia (nenhuma escrita nova em relacao ao estado bloqueado).
-      test4 = overrideFlow.writesAfterCancel === overrideFlow.writesAfterBlockedNormalCopy;
-      if (!test4) failures.push(`Teste 4 (cancelar confirmacao nao copia) falhou: writes apos bloqueio normal=${overrideFlow.writesAfterBlockedNormalCopy}, apos cancelar override=${overrideFlow.writesAfterCancel}.`);
+  check(obs.withPending.copyWarnVisible === true,
+    'Criterio 3b: aviso junto aos botoes Copiar/Imprimir nao esta visivel com pendencia ativa.');
 
-      // Teste 5: confirmar -> copia exatamente uma vez (uma escrita a mais que apos o cancelamento).
-      test5 = overrideFlow.writesAfterConfirm === overrideFlow.writesAfterCancel + 1;
-      if (!test5) failures.push(`Teste 5 (confirmar copia uma unica vez) falhou: writes apos cancelar=${overrideFlow.writesAfterCancel}, apos confirmar=${overrideFlow.writesAfterConfirm}.`);
+  check(obs.withPending.copyWrites === 1 && obs.withPending.copyConfirms === 0,
+    `Criterio 6 (copia com alerta funciona sem confirmacao): writes=${obs.withPending.copyWrites} (esperado 1), confirm() chamado ${obs.withPending.copyConfirms}x (esperado 0).`);
 
-      // Teste 6 / item 5: audit log fica vazio apos cancelar, e registra timestamp+motivo apos confirmar.
-      const auditHasTimestamp = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(overrideFlow.auditListAfterConfirm);
-      const auditHasReason = overrideFlow.auditListAfterConfirm.includes(PENDING_REASON);
-      test6 = overrideFlow.auditListAfterCancel === '' && overrideFlow.auditCardShownAfterConfirm && auditHasTimestamp && auditHasReason;
-      if (!test6) failures.push(`Teste 6 (audit log registra override com timestamp+motivo, nada no cancelamento) falhou: auditAfterCancel="${overrideFlow.auditListAfterCancel}", auditAfterConfirm="${overrideFlow.auditListAfterConfirm}", cardShown=${overrideFlow.auditCardShownAfterConfirm}.`);
+  check(obs.withPending.printThrew === null && obs.withPending.printCalls === 1,
+    `Criterio 4 (impressao funcional): threw=${obs.withPending.printThrew}, window.print() chamado ${obs.withPending.printCalls}x (esperado 1).`);
 
-      // Teste 7: override vale so para aquela copia — apos confirmar, o bloqueio padrao permanece
-      // ativo e uma segunda tentativa de copia NORMAL volta a ser bloqueada (nenhuma escrita nova).
-      test7 = overrideFlow.copyBlockedAfterConfirm === true && overrideFlow.writesAfterSecondNormal === overrideFlow.writesAfterConfirm;
-      if (!test7) failures.push(`Teste 7 (bloqueio padrao volta apos o override) falhou: COPY_BLOCKED apos confirmar=${overrideFlow.copyBlockedAfterConfirm}, writes apos 2a tentativa normal=${overrideFlow.writesAfterSecondNormal} (esperado igual a ${overrideFlow.writesAfterConfirm}).`);
+  check(obs.afterEdit.bannerStillVisible === true && obs.afterEdit.alertStillActive === true,
+    `Criterio 5 (edicao nao remove o alerta): apos editar, bannerVisible=${obs.afterEdit.bannerStillVisible}, CRITICAL_ALERT_ACTIVE=${obs.afterEdit.alertStillActive}.`);
 
-      item4 = test3 && test4;
-      item5 = test6;
-    }
-  }
+  check(obs.afterEdit.copyStillWorks === true,
+    'Criterio 5b: apos a edicao, copiar() deixou de funcionar — a saida deve permanecer sempre disponivel.');
 
-  return {
-    pass: failures.length === 0,
-    failures,
-    observed: {
-      staticCheck,
-      blockedFlow,
-      unblockedFlow,
-      overrideFlow,
-      items: { item1, item2, item3, item4, item5 },
-      tests: { test1, test3, test4, test5, test6, test7 },
-    },
-  };
+  const auditOk = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(obs.withPending.auditText)
+    && /alerta cr[ií]tico ativo/i.test(obs.withPending.auditText);
+  check(auditOk,
+    `Criterio 7 (audit log da saida com alerta): registro ausente ou sem timestamp/motivo. Observado: "${obs.withPending.auditText}".`);
+
+  check(obs.noBlockingMechanism === true,
+    `Criterio 8 (sem bloqueio a contornar): ainda existem simbolos de bloqueio/override no artefato: ${JSON.stringify(obs.legacySymbols)}.`);
+
+  check(obs.noPending.bannerVisible === false && obs.noPending.copyWrites === 1,
+    `Controle (sem pendencia): banner nao deveria aparecer (bannerVisible=${obs.noPending.bannerVisible}) e copia deveria funcionar (writes=${obs.noPending.copyWrites}).`);
+
+  return { pass: failures.length === 0, failures, observed: obs };
 }
 
 export function classify({ baseline, reference, candidate }) {
-  // Nao e um bug comportamental — e politica de produto que pode estar implementada ou pendente
-  // conforme o artefato. Classificado uniformemente como EXPECTED_CHANGE (mudanca desejada quando
-  // presente; trabalho pendente quando ausente) — nunca REGRESSION, ja que nenhum artefato tinha a
-  // politica completa antes.
-  const noteFor = (name, r) => {
-    const items = r.observed.items;
-    if (!items.item1) {
-      return `${name}: nem o bloqueio inicial (item 1) esta implementado — lacuna mais ampla que so a falta de override.`;
-    }
-    if (items.item3 && items.item4 && items.item5) {
-      return `${name}: politica completa (bloqueio + override com confirmacao + audit log + revalidacao apos a operacao) implementada e confirmada dinamicamente.`;
-    }
-    return `${name}: bloqueio inicial presente, mas sem override deliberado/auditavel completo (itens 3-5) — politica pendente de implementacao.`;
-  };
-  return {
-    label: 'EXPECTED_CHANGE',
-    rationale: [noteFor('baseline', baseline), noteFor('reference', reference), noteFor('candidate', candidate)].join(' '),
-  };
+  if (candidate.pass === true) {
+    return {
+      label: 'EXPECTED_CHANGE',
+      rationale:
+        'Candidata implementa o contrato vigente: alerta critico visivel e maximo, sem qualquer bloqueio de copia/impressao. '
+        + 'baseline e referencia sao N/A (nao possuem o mecanismo de alerta desta versao); a baseline tinha bloqueio absoluto e a '
+        + 'referencia nao tinha nem bloqueio nem sinalizacao — nenhuma das duas atende ao contrato atual.',
+    };
+  }
+  if (candidate.pass === false) {
+    return { label: 'REGRESSION', rationale: 'Politica de sinalizacao critica falhou na candidata — investigar antes do release.' };
+  }
+  return { label: 'UNRESOLVED', rationale: 'Nao avaliavel na candidata.' };
 }

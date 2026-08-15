@@ -139,6 +139,25 @@ textarea:focus,.apikey-input:focus{outline:none;border-color:var(--accent)}
 .pending-card{background:rgba(255,71,87,0.06);border:1px solid rgba(255,71,87,0.42);border-radius:var(--radius);padding:8px 12px;margin-top:.75rem;font-size:10px;color:var(--danger);display:none;line-height:1.6;white-space:pre-wrap}
 .pending-card.show{display:block}
 .pending-card strong{display:block;margin-bottom:3px}
+/* Banner crítico de alta prioridade: sinalização máxima quando há pendência/incoerência.
+   NÃO bloqueia nada — cópia e impressão permanecem sempre disponíveis (ver COPY_POLICY_CONTRACT.md).
+   Fica no topo do preview, é grande, vermelho e não pode ser dispensado pelo usuário. */
+.critical-banner{display:none;background:#c0182b;color:#fff;border:3px solid #ff4757;border-radius:var(--radius);
+  padding:16px 18px;margin:0 0 12px 0;line-height:1.5;box-shadow:0 0 0 3px rgba(255,71,87,.25)}
+.critical-banner.show{display:block}
+.critical-banner .cb-title{display:block;font-size:15px;font-weight:800;letter-spacing:.3px;margin-bottom:8px;text-transform:uppercase}
+.critical-banner .cb-list{font-size:12px;font-weight:600;white-space:pre-wrap;background:rgba(0,0,0,.22);
+  border-radius:6px;padding:10px 12px;margin-top:6px}
+@media print{
+  /* Impressão/PDF carrega o aviso junto do documento quando há pendência crítica. */
+  .critical-banner.show{display:block!important;background:#fff;color:#000;border:3px solid #000;box-shadow:none}
+  .critical-banner .cb-list{background:#f0f0f0;color:#000}
+}
+/* Aviso compacto ao lado dos botões Copiar/Imprimir, visível enquanto houver pendência. */
+.copy-warn{display:none;align-items:center;font-size:10px;font-weight:700;color:#fff;background:#c0182b;
+  border:1px solid #ff4757;border-radius:6px;padding:0 10px;white-space:nowrap}
+.copy-warn.show{display:flex}
+@media print{.copy-warn{display:none!important}}
 </style>
 </head>
 <body>
@@ -301,19 +320,25 @@ textarea:focus,.apikey-input:focus{outline:none;border-color:var(--accent)}
 <div class="trace-card" id="trace-card">
   <strong>Rastreabilidade da IA — o que não foi transcrito literalmente</strong>
   <div class="trace-legend">
-    <span><i class="trace-swatch inferred"></i> Âmbar: inferido/derivado — cópia bloqueada</span>
+    <span><i class="trace-swatch inferred"></i> Âmbar: inferido/derivado — alerta crítico, confira na fonte</span>
     <span><i class="trace-swatch reworded"></i> Azul: reformulado — conferir fonte e motivo</span>
   </div>
   <div id="trace-list"></div>
 </div>
 
 <div class="output-card" id="output-card">
+  <!-- Banner crítico: sinalização máxima, no topo do preview e acima do documento.
+       Não bloqueia cópia/impressão — apenas torna a inconsistência impossível de ignorar. -->
+  <div class="critical-banner" id="critical-banner" role="alert" aria-live="assertive">
+    <span class="cb-title">⚠ Atenção — existem inconsistências/pendências críticas. Revise as informações antes de usar este documento.</span>
+    <div class="cb-list" id="critical-banner-list"></div>
+  </div>
   <div class="output-header">
     <span class="output-title" id="output-title">Resultado</span>
-    <div style="display:flex;gap:6px">
+    <div style="display:flex;gap:6px;align-items:stretch">
+      <span class="copy-warn" id="copy-warn" title="Existem pendências críticas — revise antes de usar o documento.">⚠ COM PENDÊNCIAS CRÍTICAS</span>
       <button class="btn-copy" onclick="imprimirDocumento()">Imprimir / PDF</button>
       <button class="btn-copy" id="btn-copy" onclick="copiar()">Copiar tudo</button>
-      <button class="btn-copy" id="btn-copiar-mesmo-assim" onclick="copiarComOverride()" style="display:none">Copiar mesmo assim</button>
     </div>
   </div>
   <pre class="output-body" id="output-body"></pre>
@@ -339,7 +364,7 @@ textarea:focus,.apikey-input:focus{outline:none;border-color:var(--accent)}
 </div>
 
 <p class="footer-note">
-  RECH Docs v3.4.1 · Baseline clínica v3.3.12-P1 preservada · pré-evolução editável com revisão obrigatória · exames compactos cumulativos ordenados · rastreabilidade e bloqueios mantidos.
+  RECH Docs v3.4.1 · Baseline clínica v3.3.12-P1 preservada · pré-evolução editável · exames compactos cumulativos ordenados · rastreabilidade mantida · pendências críticas sempre sinalizadas (cópia/impressão nunca bloqueadas).
   <a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic</a> ·
   <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI</a> ·
   <a href="https://aistudio.google.com/apikey" target="_blank">Gemini</a> ·
@@ -900,16 +925,18 @@ const DEFAULT_DICT={
 // ═══════════════════════════════════════════════════════
 let MODE='admissao', STYLE='usual', PREFILL_MODE=false;
 const items=[]; const thumbUrls={}; const MAX_IMGS=10;
-let COPY_BLOCKED=false;
-// P0-03: registro de auditoria dos overrides de cópia (ALERTA -> BLOQUEIO -> "Copiar mesmo assim" ->
-// CONFIRMAÇÃO -> AUDIT LOG -> CÓPIA, ver reports/COPY_POLICY_CONTRACT.md). Cada entrada é uma cópia
-// individual feita apesar de pendência crítica.
-// O que PERSISTE durante a sessão é o registro de auditoria (para que o usuário, ou quem revisar
-// depois, saiba que houve cópia com pendência). O que NÃO persiste é qualquer autorização: esta lista
-// nunca é lida por setCopyBlocked()/copiar(), o bloqueio padrão jamais é desativado por causa de um
-// override anterior, e cada nova tentativa de cópia volta a exigir o fluxo completo de confirmação.
-// Limpo em novo caso (reiniciarTudo) e no encerramento de sessão.
-const COPY_OVERRIDE_LOG=[];
+// P0-03 (contrato revisado — ver reports/COPY_POLICY_CONTRACT.md):
+// ALERTA CRÍTICO VISUAL -> usuário vê a inconsistência -> cópia/impressão PERMANECEM LIBERADAS.
+// O RechDocs NUNCA bloqueia cópia ou impressão por conflito/incoerência/pendência. A exigência é
+// sinalização visual máxima, não bloqueio: banner vermelho no topo do preview, lista concreta das
+// pendências, aviso junto dos botões e aviso impresso no PDF. Nenhum confirm() é exigido para copiar.
+// CRITICAL_ALERT_ACTIVE é estado de SINALIZAÇÃO — jamais consultado para impedir uma ação.
+let CRITICAL_ALERT_ACTIVE=false;
+let CRITICAL_ALERT_ITEMS=[];
+// Registro de auditoria da sessão: cada cópia/impressão realizada COM alerta crítico ativo. Serve
+// para que o usuário (ou quem revisar depois) saiba que a saída ocorreu com pendência sinalizada.
+// Não autoriza nem restringe nada — a ação já é sempre permitida. Limpo em novo caso/encerrar sessão.
+const CRITICAL_OUTPUT_LOG=[];
 let PREFILL_STATE={active:false,snapshotText:'',traceItems:[],baseBlocked:false,dirty:false,reviewed:false};
 // Conta conversões de PDF em andamento — pdfToImages() é assíncrona mas era chamada sem await
 // dentro de addFiles() (loop síncrono), permitindo clicar "Gerar" com a conversão ainda incompleta
@@ -1214,10 +1241,17 @@ function resetDict(){ document.getElementById('dict').value=JSON.stringify(DEFAU
 document.addEventListener('input',(ev)=>{
   const el=ev.target;
   if(el && (el.id==='output-body' || el.id==='prefill-editor')){
-    setCopyBlocked(false);
+    // A edição manual NÃO altera o estado de alerta crítico. Antes, este listener chamava
+    // setCopyBlocked(false), o que apagava a sinalização e liberava a saída a cada tecla digitada
+    // (achado R-01/R-07 do release gate). Com o contrato atual a saída já está sempre liberada, então
+    // não há nada a "liberar" aqui — e o alerta precisa sobreviver à edição, porque a inconsistência
+    // de origem continua valendo até ser corrigida na fonte e recalculada por nova geração.
     const state=document.getElementById('prefill-state');
-    if(state)state.textContent='Correção manual registrada — cópia e impressão liberadas. Pendências continuam visíveis para conferência.';
-    setStatus('success','Correção manual registrada — esta versão do preview será usada ao copiar/imprimir.');
+    if(state)state.textContent=CRITICAL_ALERT_ACTIVE
+      ?'Correção manual registrada. ⚠ As pendências críticas sinalizadas permanecem — revise antes de usar.'
+      :'Correção manual registrada — esta versão do preview será usada ao copiar/imprimir.';
+    if(CRITICAL_ALERT_ACTIVE) setStatus('error','⚠ Correção manual registrada, mas AS PENDÊNCIAS CRÍTICAS CONTINUAM ATIVAS — revise antes de usar o documento.');
+    else setStatus('success','Correção manual registrada — esta versão do preview será usada ao copiar/imprimir.');
   }
 });
 
@@ -2788,7 +2822,7 @@ REGRAS DE EXTRAÇÃO (não de decisão):
 2. NÃO decida qual versão vence — extraia TODAS as menções, mesmo conflitantes. Isso inclui extrair a MESMA droga múltiplas vezes se aparecer em documentos diferentes com dados diferentes.
 3. NÃO infira nada que não esteja explícito no texto/imagem. Campos sem informação ficam null ou array vazio.
 3b. RASTREABILIDADE OBRIGATÓRIA: sempre retorne o array "rastreabilidade", mesmo quando vazio. Ele registra SOMENTE conteúdo clínico que não seja transcrição literal:
-   - tipo="inferido": o valor/trecho foi derivado, sintetizado ou concluído sem aparecer literalmente na fonte. Isso viola a regra de zero-inferência e será bloqueado para revisão; declare-o mesmo assim se tiver ocorrido, nunca o esconda.
+   - tipo="inferido": o valor/trecho foi derivado, sintetizado ou concluído sem aparecer literalmente na fonte. Isso viola a regra de zero-inferência e será sinalizado como alerta crítico para revisão; declare-o mesmo assim se tiver ocorrido, nunca o esconda.
    - tipo="reformulado": o significado já estava explícito, mas você trocou palavras, expandiu/reduziu ou reorganizou a formulação.
    Para cada item, "trecho_final" deve ser cópia EXATA do valor textual colocado no JSON (não inclua cabeçalho do template); "texto_fonte" deve copiar o menor trecho literal que sustenta a mudança (vazio apenas em inferência realmente sem trecho literal); "justificativa" deve explicar objetivamente por que houve inferência ou troca. Não inclua neste array normalização puramente gráfica de unidade, caixa alta/baixa, espaço ou pontuação. Conteúdo transcrito literalmente não recebe item nem cor. NUNCA invente um texto-fonte para justificar uma alteração.
 4. Dados de "DADOS ATUAIS / PARÂMETROS / EXAMES" vão direto em monitor{fc,pa,pam,spo2,temp}, gasometria{ph,paco2,pao2,hco3,lactato}, controles[] — sem versionamento (são sempre o valor mais atual, não há conflito a resolver aqui).
@@ -2926,7 +2960,7 @@ function validateTraceability(trace,finalText,sourceText,declared=true){
       if(source&& !normalizedLiteral(sourceText).includes(normalizedLiteral(source))){
         warnings.push(`⛔ A evidência declarada para a inferência não foi encontrada nos dados enviados: "${source}".`);
       }
-      warnings.push(`⛔ Conteúdo inferido/derivado não literal: "${trecho||'(trecho não informado)'}". A cópia permanece bloqueada; confirme na fonte ou remova a inferência.`);
+      warnings.push(`⛔ Conteúdo inferido/derivado não literal: "${trecho||'(trecho não informado)'}". Alerta crítico ativo; confirme na fonte ou remova a inferência antes de usar o documento.`);
     }
   });
   return {items,warnings:[...new Set(warnings)]};
@@ -2962,7 +2996,7 @@ function validateUndeclaredTransformations(d,sourceText,traceItems,comparable=tr
     const covered=declared.some(t=>valueKey.includes(t)||t.includes(valueKey));
     if(covered)return;
     const preview=value.length>140?value.slice(0,137)+'...':value;
-    warnings.push(`⛔ Conteúdo não literal no campo "${field}" sem rastreabilidade declarada: "${preview}". A cópia foi bloqueada; marque como reformulado/inferido ou restaure o texto-fonte.`);
+    warnings.push(`⛔ Conteúdo não literal no campo "${field}" sem rastreabilidade declarada: "${preview}". Alerta crítico ativo; marque como reformulado/inferido ou restaure o texto-fonte.`);
   });
   return [...new Set(warnings)];
 }
@@ -3043,7 +3077,7 @@ function validateAndNormalizeParsed(parsed){
   const warnings=[];
   const d=(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))?parsed:{};
   const traceDeclared=Object.prototype.hasOwnProperty.call(d,'rastreabilidade')&&Array.isArray(d.rastreabilidade);
-  if(!traceDeclared)warnings.push('⛔ Campo JSON "rastreabilidade" ausente ou inválido; a cópia será bloqueada porque a declaração de inferências/reformulações não pôde ser verificada.');
+  if(!traceDeclared)warnings.push('⛔ Campo JSON "rastreabilidade" ausente ou inválido; alerta crítico ativado porque a declaração de inferências/reformulações não pôde ser verificada.');
   const arrayFields=['hipoteses','medicacoes_continuas','condutas','atb','antitromboticos','dva','sedacao','bnm','outras_infusoes','dispositivos','ventilatorio','nutricao','profilaxias','exames','controles','interconsultas','rastreabilidade'];
   arrayFields.forEach(f=>{
     if(d[f]===undefined||d[f]===null){ d[f]=[]; return; }
@@ -3073,17 +3107,41 @@ function setStatus(type,msg){
   icon.style.display=type!=='loading'?'block':'none'; icon.textContent=type==='success'?'✓':'✕';
   document.getElementById('status-msg').textContent=msg;
 }
-function setCopyBlocked(blocked){
-  COPY_BLOCKED=!!blocked;
+// Liga/desliga a SINALIZAÇÃO crítica. Nunca desabilita botão nem impede ação: o botão "Copiar tudo"
+// permanece sempre habilitado, e imprimirDocumento() sempre executa. `items` é a lista concreta de
+// pendências a exibir sob o banner; quando omitida, reaproveita a lista já em CRITICAL_ALERT_ITEMS.
+function setCriticalAlert(active,items){
+  CRITICAL_ALERT_ACTIVE=!!active;
+  if(Array.isArray(items)) CRITICAL_ALERT_ITEMS=items.slice();
+  if(!CRITICAL_ALERT_ACTIVE) CRITICAL_ALERT_ITEMS=[];
+  const banner=document.getElementById('critical-banner');
+  const list=document.getElementById('critical-banner-list');
+  if(list) list.textContent=CRITICAL_ALERT_ITEMS.map(x=>'□ '+x).join('\n');
+  if(banner) banner.className=CRITICAL_ALERT_ACTIVE?'critical-banner show':'critical-banner';
+  const warn=document.getElementById('copy-warn');
+  if(warn) warn.className=CRITICAL_ALERT_ACTIVE?'copy-warn show':'copy-warn';
+  // Garantia explícita: a saída nunca é bloqueada. Se algum caminho legado desabilitou o botão,
+  // reabilita aqui — não existe mais estado em que copiar/imprimir fiquem indisponíveis.
   const btn=document.getElementById('btn-copy');
   if(btn){
-    btn.disabled=COPY_BLOCKED;
-    btn.title=COPY_BLOCKED?'Cópia bloqueada: resolva as pendências críticas acima.':'';
+    btn.disabled=false;
+    btn.title=CRITICAL_ALERT_ACTIVE
+      ?'Existem pendências críticas sinalizadas acima. A cópia está liberada — revise antes de usar o documento.'
+      :'';
   }
-  // "Copiar mesmo assim" só existe enquanto há bloqueio ativo — sem pendência não há o que
-  // sobrepor (copiar() já funciona normalmente nesse caso).
-  const overrideBtn=document.getElementById('btn-copiar-mesmo-assim');
-  if(overrideBtn) overrideBtn.style.display=COPY_BLOCKED?'':'none';
+}
+// Registra no log de auditoria da sessão que uma saída (cópia/impressão) ocorreu com alerta crítico
+// ativo. Não impede nem condiciona a ação — é chamado DEPOIS que ela acontece.
+function registrarSaidaComAlerta(acao){
+  if(!CRITICAL_ALERT_ACTIVE)return;
+  const entry={timestamp:new Date().toISOString(),acao,pendencias:CRITICAL_ALERT_ITEMS.slice()};
+  CRITICAL_OUTPUT_LOG.push(entry);
+  const auditList=document.getElementById('audit-list');
+  const auditCard=document.getElementById('audit-card');
+  const resumo=entry.pendencias.length?entry.pendencias.join(' | '):'pendência(s) crítica(s) sinalizada(s)';
+  const linha=`⚠ ${acao} realizada em ${entry.timestamp} COM ALERTA CRÍTICO ATIVO — ${resumo}`;
+  if(auditList) auditList.textContent=auditList.textContent?auditList.textContent+'\n'+linha:linha;
+  if(auditCard) auditCard.className='audit-card show';
 }
 function setPrefillStateMessage(message,type='warning'){
   const el=document.getElementById('prefill-state');
@@ -3104,46 +3162,46 @@ function startPreEvolutionEditor(text,traceItems,baseBlocked){
   const editor=document.getElementById('prefill-editor');
   if(card)card.className='prefill-editor-card show';
   if(editor)editor.value=PREFILL_STATE.snapshotText;
-  setCopyBlocked(true);
+  // Pendência da reconciliação/rastreabilidade NÃO bloqueia a saída — apenas mantém o alerta
+  // crítico visível. A cópia/impressão continuam disponíveis o tempo todo.
+  if(baseBlocked) setCriticalAlert(true);
   setPrefillStateMessage(baseBlocked
-    ?'Há pendências clínicas bloqueantes. A edição não as libera; corrija a fonte e gere novamente.'
-    :'Pré-evolução gerada. Revise exame físico e condutas e clique em “Confirmar revisão” antes de copiar ou imprimir.');
+    ?'⚠ Há pendências clínicas críticas sinalizadas acima. Copiar/imprimir seguem disponíveis — revise antes de usar.'
+    :'Pré-evolução gerada. Revise exame físico e condutas antes de copiar ou imprimir.');
 }
 function onPreEvolutionEdit(){
   if(!PREFILL_STATE.active)return;
   PREFILL_STATE.dirty=true;
   PREFILL_STATE.reviewed=false;
-  setCopyBlocked(true);
-  setPrefillStateMessage('Alteração manual detectada. Saída bloqueada até atualizar o preview e confirmar nova revisão.');
+  // Edição manual NÃO apaga o alerta crítico: a inconsistência de origem continua valendo até ser
+  // efetivamente resolvida e recalculada (nova geração). Também não bloqueia nada.
+  setPrefillStateMessage(CRITICAL_ALERT_ACTIVE
+    ?'Alteração manual registrada. ⚠ As pendências críticas sinalizadas permanecem — revise antes de usar.'
+    :'Alteração manual registrada. Esta versão do texto será usada ao copiar/imprimir.');
 }
 function visualizarPreEvolucao(){
   if(!PREFILL_STATE.active)return;
   const text=document.getElementById('prefill-editor').value;
   document.getElementById('output-body').textContent=text;
-  setCopyBlocked(true);
-  setPrefillStateMessage('Preview atualizado com texto editado. Confirme a revisão para liberar a saída.');
+  setPrefillStateMessage(CRITICAL_ALERT_ACTIVE
+    ?'Preview atualizado. ⚠ Pendências críticas continuam sinalizadas — revise antes de usar.'
+    :'Preview atualizado com o texto editado.');
 }
 function confirmarRevisaoPreEvolucao(){
   if(!PREFILL_STATE.active)return;
   const text=document.getElementById('prefill-editor').value;
   document.getElementById('output-body').textContent=text;
   if(!cleanStr(text)){
-    setCopyBlocked(true);
-    setPrefillStateMessage('Revisão não liberada: o documento editado está vazio.','error');
+    setPrefillStateMessage('O documento editado está vazio — nada a revisar.','error');
     return;
-  }
-  if(PREFILL_STATE.baseBlocked){
-    setCopyBlocked(true);
-    setPrefillStateMessage('Revisão não liberada: permanecem pendências clínicas da reconciliação/rastreabilidade. Corrija a fonte e gere novamente.','error');
-    return;
-  }
-  if(!confirm('Confirma que revisou integralmente a pré-evolução, incluindo exame físico, condutas, cronologia, exames e campos em branco?')){
-    setCopyBlocked(true);return;
   }
   PREFILL_STATE.dirty=false;
   PREFILL_STATE.reviewed=true;
-  setCopyBlocked(false);
-  setPrefillStateMessage('Revisão humana confirmada. Cópia e impressão liberadas para esta versão do texto.','success');
+  // Confirmar revisão registra a leitura humana, mas NÃO apaga o alerta crítico: o alerta reflete a
+  // reconciliação dos dados de origem e só some quando a condição que o gerou for recalculada.
+  setPrefillStateMessage(CRITICAL_ALERT_ACTIVE
+    ?'Revisão registrada. ⚠ As pendências críticas permanecem sinalizadas — elas só desaparecem após correção na fonte e nova geração.'
+    :'Revisão humana registrada para esta versão do texto.','success');
 }
 function cancelarPreEvolucao(){
   if(!PREFILL_STATE.active)return;
@@ -3151,14 +3209,15 @@ function cancelarPreEvolucao(){
   renderTraceableOutput(PREFILL_STATE.snapshotText,PREFILL_STATE.traceItems);
   PREFILL_STATE.dirty=false;
   PREFILL_STATE.reviewed=false;
-  setCopyBlocked(true);
-  setPrefillStateMessage('Alterações canceladas. O texto original da pré-evolução foi restaurado exatamente; revise e confirme antes de usar.');
+  setPrefillStateMessage('Alterações canceladas. O texto original da pré-evolução foi restaurado exatamente.');
 }
+// Impressão/PDF SEMPRE disponível. Havendo pendência crítica, o banner (que tem regra @media print
+// própria) é impresso junto com o documento, e a saída fica registrada no log de auditoria.
 function imprimirDocumento(){
-  if(COPY_BLOCKED){
-    setStatus('error','Impressão/PDF bloqueada: resolva as pendências e confirme a revisão antes de exportar.');
-    return;
+  if(CRITICAL_ALERT_ACTIVE){
+    setStatus('error','⚠ Documento impresso COM pendências críticas sinalizadas — o aviso acompanha a impressão. Revise antes de usar.');
   }
+  registrarSaidaComAlerta('Impressão/PDF');
   window.print();
 }
 function httpErr(status,body){
@@ -3358,7 +3417,7 @@ function validateRenderedDocumentAgainstState(texto,state){
 async function processar(){
   if(PDF_PROCESSING_COUNT>0){ setStatus('error','📄 Aguarde a conversão do(s) PDF(s) terminar antes de gerar o documento.'); return; }
   resetPreEvolutionState();
-  setCopyBlocked(false);
+  setCriticalAlert(false);
 
   // Documento Complementar é um formulário local e deliberadamente não usa IA.
   // Deve funcionar sem chave, imagens ou texto nos cards de extração.
@@ -3447,16 +3506,16 @@ async function processar(){
       clearTimeout(timeoutId);
       if(!result.ok){setStatus('error',result.errorMsg);document.getElementById('btn-gen').disabled=false;return;}
       if(result.truncated){
-        setCopyBlocked(true);
-        setStatus('error','Resposta truncada pelo provedor. A passagem não foi liberada para cópia; tente novamente com menos conteúdo ou outro modelo.');
+        setCriticalAlert(true,['Resposta do provedor truncada — a passagem de plantão está INCOMPLETA.']);
+        setStatus('error','⚠ Resposta truncada pelo provedor: a passagem está incompleta. Tente novamente com menos conteúdo ou outro modelo.');
         document.getElementById('btn-gen').disabled=false;
         return;
       }
       document.getElementById('output-title').textContent='PASSAGEM DE PLANTÃO';
       const rendered=result.text.trim();
       if(!rendered){
-        setCopyBlocked(true);
-        setStatus('error','Resposta vazia. A passagem não foi gerada.');
+        setCriticalAlert(true,['Resposta vazia do provedor — a passagem de plantão NÃO foi gerada.']);
+        setStatus('error','⚠ Resposta vazia: a passagem não foi gerada.');
         document.getElementById('btn-gen').disabled=false;
         return;
       }
@@ -3476,11 +3535,11 @@ async function processar(){
     clearTimeout(timeoutId);
     if(!result.ok){setStatus('error',result.errorMsg);document.getElementById('btn-gen').disabled=false;return;}
     if(result.truncated){
-      setCopyBlocked(true);
+      setCriticalAlert(true,['Resposta do provedor truncada — nenhum documento clínico completo foi produzido.']);
       document.getElementById('output-title').textContent='ERRO: RESPOSTA TRUNCADA';
-      document.getElementById('output-body').textContent='A resposta atingiu o limite de saída antes de concluir o JSON. Nenhum documento clínico foi liberado para cópia.';
+      document.getElementById('output-body').textContent='A resposta atingiu o limite de saída antes de concluir o JSON. NÃO use este conteúdo como documento clínico.';
       document.getElementById('output-card').style.display='block';
-      setStatus('error','Resposta truncada; geração bloqueada.');
+      setStatus('error','⚠ Resposta truncada: o conteúdo exibido está incompleto e não deve ser usado como documento clínico.');
       document.getElementById('btn-gen').disabled=false;
       return;
     }
@@ -3498,8 +3557,8 @@ async function processar(){
         : 'JSON cortado ou inválido. Tente reduzir os dados enviados.';
       document.getElementById('output-body').textContent=causaMsg+'\n\n── RAW ──\n\n'+raw;
       document.getElementById('output-card').style.display='block';
-      setCopyBlocked(true);
-      setStatus('error','JSON incompleto.'); document.getElementById('btn-gen').disabled=false; return;
+      setCriticalAlert(true,['Resposta do provedor com JSON inválido/incompleto — o conteúdo abaixo NÃO é um documento clínico válido.']);
+      setStatus('error','⚠ JSON incompleto: o conteúdo exibido não é um documento clínico válido.'); document.getElementById('btn-gen').disabled=false; return;
     }
 
     const normalized=validateAndNormalizeParsed(parsed);
@@ -3538,7 +3597,10 @@ async function processar(){
     if(pend.length){
       document.getElementById('pending-list').textContent=pend.map(x=>'□ '+x).join('\n');
       document.getElementById('pending-card').className='pending-card show';
-      setCopyBlocked(true);
+      // Sinalização máxima, sem bloqueio: banner crítico com a lista concreta das pendências.
+      setCriticalAlert(true,pend);
+    }else{
+      setCriticalAlert(false);
     }
     if(engine.auditLog.length){ document.getElementById('audit-list').textContent=engine.auditLog.join('\n'); document.getElementById('audit-card').className='audit-card show'; }
 
@@ -3551,9 +3613,9 @@ async function processar(){
     document.getElementById('output-card').style.display='block';
     if(prefillActive){
       startPreEvolutionEditor(displayedRendered,traceResult.items,pend.length>0);
-      if(pend.length)setStatus('error','Pré-evolução gerada com pendências clínicas — revise e corrija diretamente no preview; após sua edição, copiar/imprimir serão liberados.');
+      if(pend.length)setStatus('error','⚠ Pré-evolução gerada COM pendências críticas — veja o banner vermelho e a lista acima. Copiar/imprimir seguem disponíveis; revise antes de usar.');
       else setStatus('success','Pré-evolução gerada — revise o editor e confirme antes de copiar ou imprimir.');
-    }else if(pend.length) setStatus('error','Documento gerado com pendências críticas — cópia bloqueada até correção e nova geração.');
+    }else if(pend.length) setStatus('error','⚠ Documento gerado COM pendências críticas — veja o banner vermelho e a lista acima. Copiar/imprimir seguem disponíveis; revise antes de usar.');
     else setStatus('success','Documento gerado — confira alertas/auditoria acima antes de assinar.');
   }catch(err){
     if(err.name==='AbortError'||err.message==='TIMEOUT')setStatus('error','⏱ Timeout 180s. Requisição abortada. Reduza imagens/PDF/texto, use modelo mais rápido ou verifique conexão/API.');
@@ -3605,11 +3667,11 @@ function reiniciarTudo(){
   document.getElementById('pending-card').className='pending-card';
   document.getElementById('audit-card').className='audit-card';
   document.getElementById('audit-list').textContent='';
-  COPY_OVERRIDE_LOG.length=0;
+  CRITICAL_OUTPUT_LOG.length=0;
   document.getElementById('output-body').textContent='';
   resetTraceReview();
   resetPreEvolutionState();
-  setCopyBlocked(false);
+  setCriticalAlert(false);
   setStatus('');
 }
 function encerrarSessaoCompleta(){
@@ -3629,54 +3691,16 @@ function encerrarSessaoCompleta(){
   }
   setStatus('success','Sessão clínica encerrada: dados, anexos, resultados e segredos temporários foram removidos.');
 }
+// Cópia SEMPRE disponível — nunca bloqueada por conflito/incoerência/pendência. Havendo alerta
+// crítico ativo, a sinalização permanece visível (banner + aviso junto aos botões) e a saída fica
+// registrada no log de auditoria da sessão. Nenhuma confirmação é exigida para copiar.
 function copiar(){
-  if(COPY_BLOCKED){
-    setStatus('error','Cópia bloqueada: resolva as pendências críticas e gere novamente o documento.');
-    return;
-  }
   const txt=document.getElementById('output-body').textContent;
   (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject(new Error('Clipboard indisponível'))).then(()=>{
+    registrarSaidaComAlerta('Cópia');
     const btn=document.getElementById('btn-copy'); btn.textContent='✓ Copiado!'; btn.classList.add('copied');
     setTimeout(()=>{btn.textContent='Copiar tudo';btn.classList.remove('copied');},2000);
-  }).catch(()=>{ setStatus('error','Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.'); });
-}
-// P0-03: motivo exibido ao usuário no momento do override — reaproveita o texto de pendências já
-// mostrado no pending-card (mesma fonte que bloqueou a cópia); não reclassifica nem inventa motivo.
-function currentCopyBlockReason(){
-  const pendList=document.getElementById('pending-list');
-  const pendText=pendList?cleanStr(pendList.textContent):'';
-  if(pendText)return pendText;
-  const statusMsg=document.getElementById('status-msg');
-  const statusText=statusMsg?cleanStr(statusMsg.textContent):'';
-  return statusText||'Pendência crítica não especificada.';
-}
-// P0-03 (reports/COPY_POLICY_CONTRACT.md): ALERTA -> BLOQUEIO -> "Copiar mesmo assim" ->
-// CONFIRMAÇÃO EXPLÍCITA -> AUDIT LOG -> CÓPIA. Sem pendência ativa, equivale a copiar() normal (não
-// há o que sobrepor). Com pendência: pede confirmação explícita e inequívoca antes de copiar; nunca
-// desativa COPY_BLOCKED — o override vale só para esta cópia específica, e a próxima tentativa
-// (normal ou via este mesmo botão) volta a exigir nova confirmação. Nenhuma AUTORIZAÇÃO é persistida
-// em lugar nenhum (nem em localStorage/sessionStorage, nem em variável de escopo maior); o que fica
-// guardado na sessão é apenas o REGISTRO DE AUDITORIA em COPY_OVERRIDE_LOG, que não libera nada.
-function copiarComOverride(){
-  if(!COPY_BLOCKED){ copiar(); return; }
-  const motivo=currentCopyBlockReason();
-  const confirmado=confirm('Há pendência(s) crítica(s) não resolvida(s):\n\n'+motivo+'\n\nCopiar mesmo assim registra esta decisão no log de auditoria da sessão e vale apenas para esta cópia — a próxima tentativa volta a ficar bloqueada.\n\nConfirma que revisou e deseja copiar mesmo assim?');
-  if(!confirmado){
-    setStatus('error','Override de cópia cancelado. O bloqueio permanece.');
-    return;
-  }
-  const txt=document.getElementById('output-body').textContent;
-  (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject(new Error('Clipboard indisponível'))).then(()=>{
-    const entry={timestamp:new Date().toISOString(),motivo};
-    COPY_OVERRIDE_LOG.push(entry);
-    const auditList=document.getElementById('audit-list');
-    const auditCard=document.getElementById('audit-card');
-    const linha=`⚠ Override de cópia em ${entry.timestamp} — pendência(s) ignorada(s) por decisão humana: ${entry.motivo}`;
-    if(auditList) auditList.textContent=auditList.textContent?auditList.textContent+'\n'+linha:linha;
-    if(auditCard) auditCard.className='audit-card show';
-    const btn=document.getElementById('btn-copiar-mesmo-assim');
-    if(btn){ const original='Copiar mesmo assim'; btn.textContent='✓ Copiado (override)'; setTimeout(()=>{btn.textContent=original;},2000); }
-    setStatus('success','Documento copiado mesmo com pendências — override registrado no log de auditoria desta sessão.');
+    if(CRITICAL_ALERT_ACTIVE) setStatus('error','⚠ Documento copiado COM pendências críticas ativas — revise antes de usar. Registrado no log de auditoria.');
   }).catch(()=>{ setStatus('error','Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.'); });
 }
 // Interface mínima para a suíte local de regressão. Não contém dados de paciente nem altera o

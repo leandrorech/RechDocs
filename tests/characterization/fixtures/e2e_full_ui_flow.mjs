@@ -3,7 +3,7 @@
 // Diferente das fixtures P0-*/CI-05 (que chamam funcoes clinicas diretamente), esta fixture
 // exercita o CAMINHO REAL DA INTERFACE: preenche os campos de texto, seleciona o modo, salva a
 // chave, clica em "Gerar Documento" (processar()), e so entao opera preview, edicao, copia,
-// bloqueio, override, impressao e reinicio de sessao pelos mesmos handlers que o usuario aciona.
+// sinalizacao critica, impressao e reinicio de sessao pelos mesmos handlers que o usuario aciona.
 //
 // Rede: a unica chamada de rede do fluxo (fetch ao provedor de IA) e interceptada por
 // page.route() no browser-adapter e respondida com um payload SINTETICO — nenhuma chave real,
@@ -12,34 +12,35 @@
 // Dados: 100% sinteticos/desidentificados. Nenhum identificador de paciente real; o campo de
 // identificacao usa "PACIENTE TESTE E2E" e leito fictício.
 //
-// Cobertura (10 cenarios pedidos no release gate):
-//   1. geracao normal (sem pendencia critica) pela UI
+// Contrato vigente (reports/COPY_POLICY_CONTRACT.md): SINALIZACAO MAXIMA, SEM BLOQUEIO.
+// Cobertura:
+//   1. geracao normal pela UI
 //   2. preview renderizado
-//   3. edicao apos geracao (preview editavel) invalida a liberacao
-//   4. copiar sem pendencia
-//   5. bloqueio com pendencia critica
-//   6. override cancelado
-//   7. override confirmado
-//   8. segunda copia normal novamente bloqueada
-//   9. impressao/PDF sem excecao
-//  10. reiniciar sessao limpando estado/audit
+//   3/4. sem pendencia: nenhum alerta e copia funcional
+//   5. pendencia critica: banner + lista + aviso, mas SEM bloqueio
+//   6. copia com alerta ativo funciona e nao exige confirmacao
+//   7. audit log registra a saida com alerta ativo
+//   8. edicao manual NAO remove o alerta (requisito remanescente do R-01/R-07)
+//   9. segunda copia continua funcionando
+//  10. impressao/PDF com alerta funciona e fica auditada
+//  11. reiniciar sessao limpando estado/audit
 import { EVIDENCE_KIND } from '../harness/compare-results.mjs';
 import { runFullUiFlow } from '../harness/capture-state.mjs';
 
 export const id = 'E2E-01';
-export const description = 'Fluxo real de UI ponta a ponta (geracao -> preview -> edicao -> copia -> bloqueio -> override -> impressao -> reset)';
+export const description = 'Fluxo real de UI ponta a ponta (geracao -> preview -> edicao -> alerta critico -> copia/impressao sempre liberadas -> reset)';
 export const evidenceKind = EVIDENCE_KIND.DYNAMIC_E2E_EVIDENCE;
 export const expected =
-  'Pelo caminho real da interface: geracao sem pendencia produz preview e libera copia; edicao manual invalida a liberacao; ' +
-  'pendencia critica bloqueia a copia; override exige confirmacao, cancelar nao copia, confirmar copia uma vez e audita; ' +
-  'nova copia normal volta a bloquear; impressao nao lanca excecao; reiniciar sessao limpa saida, audit log e bloqueio.';
+  'Pelo caminho real da interface: geracao sem pendencia produz preview sem alerta e copia funcional; pendencia critica produz ' +
+  'banner vermelho + lista + aviso nos botoes SEM bloquear nada; copia/impressao funcionam com alerta ativo, sem confirmacao, e ' +
+  'ficam registradas no audit log; edicao manual nao apaga o alerta; reiniciar sessao limpa saida, audit log e sinalizacao.';
 
 export async function runOn(session) {
   const flow = await runFullUiFlow(session);
 
   if (!flow.supported) {
     return {
-      pass: null, // N/A — artefato nao expoe o fluxo (ex: referencia sem politica de copia)
+      pass: null, // N/A — artefato nao possui o mecanismo de alerta critico desta versao
       failures: [],
       observed: flow,
     };
@@ -53,95 +54,69 @@ export async function runOn(session) {
   check(!flow.generation.pageErrors.length, `Cenario 1: erros de pagina durante a geracao: ${JSON.stringify(flow.generation.pageErrors)}.`);
 
   // 2. preview renderizado com conteudo clinico
-  check(
-    flow.generation.outputTextLength > 0,
-    `Cenario 2 (preview): output-body vazio apos a geracao (len=${flow.generation.outputTextLength}).`
-  );
+  check(flow.generation.outputTextLength > 0,
+    `Cenario 2 (preview): output-body vazio apos a geracao (len=${flow.generation.outputTextLength}).`);
 
-  // 3+4. sem pendencia critica -> copia liberada e funciona
-  check(
-    flow.generation.copyBlockedAfterGeneration === false,
-    `Cenario 4 (copiar sem pendencia): COPY_BLOCKED=${flow.generation.copyBlockedAfterGeneration} apos geracao sem pendencia (esperado false). Pendencias observadas: ${JSON.stringify(flow.generation.pendingText)}.`
-  );
-  check(
-    flow.cleanCopy.writes === 1,
-    `Cenario 4: copiar() sem pendencia escreveu ${flow.cleanCopy.writes} vez(es) no clipboard (esperado 1).`
-  );
+  // 3. geracao limpa: sem alerta, sem banner, copia funcional
+  check(flow.generation.criticalAlertAfterGeneration === false && flow.generation.bannerVisible === false,
+    `Cenario 3 (geracao sem pendencia): alerta/banner nao deveriam estar ativos. ` +
+    `alerta=${flow.generation.criticalAlertAfterGeneration}, banner=${flow.generation.bannerVisible}, pendencias="${flow.generation.pendingText}".`);
+  check(flow.generation.copyButtonDisabled === false,
+    'Cenario 3b: botao "Copiar tudo" veio desabilitado apos a geracao — o contrato proibe bloqueio.');
+  check(flow.cleanCopy.writes === 1,
+    `Cenario 4 (copiar sem pendencia): escreveu ${flow.cleanCopy.writes} vez(es) no clipboard (esperado 1).`);
 
-  // 3. edicao apos geracao — assercao de SEGURANCA (R-01 de reports/REGRESSION_RISKS.md e
-  // invariante de docs/REGRAS_CLINICAS.md): uma edicao manual no preview NAO pode, por si so,
-  // liberar a copia enquanto existe pendencia critica/bloqueante ativa. Liberar exige o caminho
-  // auditavel do P0-03 (confirmacao explicita + audit log) ou a confirmacao de revisao da
-  // pre-evolucao — nunca a simples digitacao de um caractere, que nao registra nada.
-  check(
-    flow.editUnderBlock.copyBlockedAfterEdit === true,
-    `Cenario 3 (R-01, SEGURANCA): com pendencia critica ativa, uma edicao manual no preview liberou a copia sozinha ` +
-    `(COPY_BLOCKED passou de ${flow.editUnderBlock.copyBlockedBefore} para ${flow.editUnderBlock.copyBlockedAfterEdit}), ` +
-    `sem confirmacao explicita e sem registro no audit log (audit="${flow.editUnderBlock.auditAfterEdit}"). ` +
-    `Isso contorna a politica de copia do P0-03: copiar() apos a edicao escreveu ${flow.editUnderBlock.writesAfterEdit} vez(es).`
-  );
-  check(
-    flow.editUnderBlock.prefillBypass !== true,
-    `Cenario 3b (R-01, SEGURANCA): na pre-evolucao iniciada com pendencia bloqueante (baseBlocked=true), ` +
-    `uma edicao no prefill-editor liberou copiar() sem passar por confirmarRevisaoPreEvolucao() ` +
-    `(PREFILL_STATE.reviewed=${flow.editUnderBlock.prefillReviewed}) e sem audit log — ` +
-    `onPreEvolutionEdit() faz setCopyBlocked(true), mas o listener global de 'input' executa depois e reverte para false.`
-  );
+  // 5. pendencia critica -> banner + lista + aviso, MAS copia habilitada
+  check(flow.alerted.alertActive === true && flow.alerted.bannerVisible === true,
+    `Cenario 5 (pendencia critica sinalizada): alerta=${flow.alerted.alertActive}, banner=${flow.alerted.bannerVisible} (esperado ambos true).`);
+  check(flow.alerted.bannerListText.includes('Pendencia critica sintetica'),
+    `Cenario 5b (lista de pendencias visivel): observado "${flow.alerted.bannerListText}".`);
+  check(flow.alerted.copyWarnVisible === true,
+    'Cenario 5c: aviso junto aos botoes Copiar/Imprimir nao esta visivel com pendencia ativa.');
+  check(flow.alerted.copyButtonDisabled === false,
+    'Cenario 5d (SEM BLOQUEIO): botao "Copiar tudo" esta desabilitado com pendencia — o contrato vigente proibe isso.');
 
-  // 5. pendencia critica bloqueia
-  check(
-    flow.blocked.copyBlocked === true && flow.blocked.writes === 0,
-    `Cenario 5 (bloqueio com pendencia critica): COPY_BLOCKED=${flow.blocked.copyBlocked}, writes=${flow.blocked.writes} (esperado true/0). Pendencias: ${JSON.stringify(flow.blocked.pendingText)}.`
-  );
-  check(
-    flow.blocked.overrideButtonVisible === true,
-    'Cenario 5: botao "Copiar mesmo assim" nao ficou visivel com bloqueio ativo.'
-  );
+  // 6. copia com alerta funciona, sem confirmacao
+  check(flow.copyWithAlert.writes === 1 && flow.copyWithAlert.confirms === 0,
+    `Cenario 6 (copia com alerta ativo): writes=${flow.copyWithAlert.writes} (esperado 1), confirm() chamado ${flow.copyWithAlert.confirms}x (esperado 0 — nenhuma confirmacao deve ser exigida).`);
 
-  // 6. override cancelado
-  check(
-    flow.overrideCancelled.confirmCalled === true,
-    'Cenario 6 (override cancelado): confirm() nao foi chamado.'
-  );
-  check(
-    flow.overrideCancelled.writes === 0 && flow.overrideCancelled.auditText === '',
-    `Cenario 6: cancelar o override copiou e/ou auditou indevidamente (writes=${flow.overrideCancelled.writes}, audit="${flow.overrideCancelled.auditText}").`
-  );
+  // 7. audit log registra a saida com alerta ativo
+  const auditOk = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(flow.copyWithAlert.auditText)
+    && /alerta cr[ií]tico ativo/i.test(flow.copyWithAlert.auditText);
+  check(auditOk && flow.copyWithAlert.auditCardVisible,
+    `Cenario 7 (audit log): saida com alerta nao registrada corretamente. audit="${flow.copyWithAlert.auditText}", cardVisible=${flow.copyWithAlert.auditCardVisible}.`);
+  check(flow.copyWithAlert.alertStillActive === true,
+    'Cenario 7b: o alerta critico foi desativado pela propria copia — deve permanecer ate ser recalculado.');
 
-  // 7. override confirmado
-  check(
-    flow.overrideConfirmed.writes === 1,
-    `Cenario 7 (override confirmado): esperado exatamente 1 escrita, observado ${flow.overrideConfirmed.writes}.`
-  );
-  const auditOk = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(flow.overrideConfirmed.auditText) && flow.overrideConfirmed.auditText.length > 0;
-  check(
-    auditOk && flow.overrideConfirmed.auditCardVisible,
-    `Cenario 7: audit log nao registrou o override com timestamp (audit="${flow.overrideConfirmed.auditText}", cardVisible=${flow.overrideConfirmed.auditCardVisible}).`
-  );
+  // 8. edicao manual NAO remove o alerta (requisito remanescente do R-01/R-07)
+  check(flow.editUnderAlert.alertAfterEdit === true && flow.editUnderAlert.bannerAfterEdit === true,
+    `Cenario 8 (R-01/R-07 — edicao nao apaga o alerta): apos digitar no preview, alerta=${flow.editUnderAlert.alertAfterEdit}, ` +
+    `banner=${flow.editUnderAlert.bannerAfterEdit} (esperado ambos true; antes o listener global apagava a sinalizacao a cada tecla).`);
+  check(flow.editUnderAlert.warnAfterEdit === true,
+    'Cenario 8b: aviso junto aos botoes desapareceu apos a edicao manual.');
+  check(flow.editUnderAlert.writesAfterEdit === 1 && flow.editUnderAlert.copyDisabledAfterEdit === false,
+    `Cenario 8c: apos a edicao, a copia deve continuar funcionando (writes=${flow.editUnderAlert.writesAfterEdit}, disabled=${flow.editUnderAlert.copyDisabledAfterEdit}).`);
+  check(flow.editUnderAlert.prefillAlertSurvives !== false,
+    'Cenario 8d: na pre-evolucao com pendencia de reconciliacao, a edicao no prefill-editor apagou o alerta critico.');
 
-  // 8. segunda copia normal volta a bloquear
-  check(
-    flow.secondCopy.copyBlockedStillTrue === true && flow.secondCopy.writes === 0,
-    `Cenario 8 (2a copia bloqueada): COPY_BLOCKED=${flow.secondCopy.copyBlockedStillTrue}, novas escritas=${flow.secondCopy.writes} (esperado true/0) — o override nao pode valer para mais de uma operacao.`
-  );
+  // 9. segunda copia continua funcionando (nao ha bloqueio a reinstaurar)
+  check(flow.secondCopy.writes === 1 && flow.secondCopy.alertStillActive === true,
+    `Cenario 9 (segunda copia): writes=${flow.secondCopy.writes} (esperado 1), alerta ainda ativo=${flow.secondCopy.alertStillActive}.`);
 
-  // 9. impressao sem excecao
-  check(
-    flow.print.threw === null,
-    `Cenario 9 (impressao/PDF): excecao ao imprimir: ${flow.print.threw}.`
-  );
+  // 10. impressao/PDF com alerta: funciona e fica auditada
+  check(flow.print.threw === null && flow.print.printCalls === 1,
+    `Cenario 10 (impressao/PDF): threw=${flow.print.threw}, window.print() chamado ${flow.print.printCalls}x (esperado 1).`);
+  check(flow.print.auditMentionsPrint === true,
+    'Cenario 10b: impressao com alerta ativo nao foi registrada no log de auditoria.');
 
-  // 10. reset limpa estado
-  check(
-    flow.reset.outputEmpty && flow.reset.auditEmpty && flow.reset.copyBlocked === false && flow.reset.overrideLogLength === 0,
-    `Cenario 10 (reiniciar sessao): estado nao foi limpo — outputEmpty=${flow.reset.outputEmpty}, auditEmpty=${flow.reset.auditEmpty}, COPY_BLOCKED=${flow.reset.copyBlocked}, overrideLog=${flow.reset.overrideLogLength}.`
-  );
+  // 11. reset limpa estado
+  check(flow.reset.outputEmpty && flow.reset.auditEmpty && flow.reset.alertActive === false
+        && flow.reset.bannerVisible === false && flow.reset.outputLogLength === 0,
+    `Cenario 11 (reiniciar sessao): estado nao foi limpo — outputEmpty=${flow.reset.outputEmpty}, auditEmpty=${flow.reset.auditEmpty}, ` +
+    `alerta=${flow.reset.alertActive}, banner=${flow.reset.bannerVisible}, log=${flow.reset.outputLogLength}.`);
 
-  // Nenhum erro de console/pagina em todo o fluxo.
-  check(
-    flow.pageErrors.length === 0,
-    `Erros de pagina (excecao JS nao tratada) durante o fluxo: ${JSON.stringify(flow.pageErrors)}.`
-  );
+  check(flow.pageErrors.length === 0,
+    `Erros de pagina (excecao JS nao tratada) durante o fluxo: ${JSON.stringify(flow.pageErrors)}.`);
 
   return { pass: failures.length === 0, failures, observed: flow };
 }
@@ -151,8 +126,8 @@ export function classify({ baseline, reference, candidate }) {
     return {
       label: 'EXPECTED_CHANGE',
       rationale:
-        'Candidata percorre o fluxo real de UI ponta a ponta sem excecao e com a politica de copia completa. ' +
-        'baseline/referencia sao N/A ou FAIL por nao possuirem o fluxo de override — nao e regressao, e a funcionalidade nova desta consolidacao.',
+        'Candidata percorre o fluxo real de UI ponta a ponta sem excecao, com sinalizacao critica maxima e sem qualquer bloqueio de ' +
+        'copia/impressao. baseline/referencia sao N/A por nao possuirem o mecanismo de alerta desta versao.',
     };
   }
   if (candidate.pass === false) {
