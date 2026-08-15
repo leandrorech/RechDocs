@@ -901,11 +901,14 @@ const DEFAULT_DICT={
 let MODE='admissao', STYLE='usual', PREFILL_MODE=false;
 const items=[]; const thumbUrls={}; const MAX_IMGS=10;
 let COPY_BLOCKED=false;
-// P0-03: registro de override de cópia (ALERTA -> BLOQUEIO -> "Copiar mesmo assim" -> CONFIRMAÇÃO ->
-// AUDIT LOG -> CÓPIA, ver reports/COPY_POLICY_CONTRACT.md). Cada entrada é uma cópia individual feita
-// apesar de pendência crítica; nunca é lida por setCopyBlocked/copiar() — o bloqueio padrão nunca é
-// desativado por causa de um override anterior, e cada nova tentativa de cópia normal volta a checar
-// COPY_BLOCKED normalmente. Memória de sessão; limpo em novo caso/encerrar sessão.
+// P0-03: registro de auditoria dos overrides de cópia (ALERTA -> BLOQUEIO -> "Copiar mesmo assim" ->
+// CONFIRMAÇÃO -> AUDIT LOG -> CÓPIA, ver reports/COPY_POLICY_CONTRACT.md). Cada entrada é uma cópia
+// individual feita apesar de pendência crítica.
+// O que PERSISTE durante a sessão é o registro de auditoria (para que o usuário, ou quem revisar
+// depois, saiba que houve cópia com pendência). O que NÃO persiste é qualquer autorização: esta lista
+// nunca é lida por setCopyBlocked()/copiar(), o bloqueio padrão jamais é desativado por causa de um
+// override anterior, e cada nova tentativa de cópia volta a exigir o fluxo completo de confirmação.
+// Limpo em novo caso (reiniciarTudo) e no encerramento de sessão.
 const COPY_OVERRIDE_LOG=[];
 let PREFILL_STATE={active:false,snapshotText:'',traceItems:[],baseBlocked:false,dirty:false,reviewed:false};
 // Conta conversões de PDF em andamento — pdfToImages() é assíncrona mas era chamada sem await
@@ -3651,8 +3654,9 @@ function currentCopyBlockReason(){
 // CONFIRMAÇÃO EXPLÍCITA -> AUDIT LOG -> CÓPIA. Sem pendência ativa, equivale a copiar() normal (não
 // há o que sobrepor). Com pendência: pede confirmação explícita e inequívoca antes de copiar; nunca
 // desativa COPY_BLOCKED — o override vale só para esta cópia específica, e a próxima tentativa
-// (normal ou via este mesmo botão) volta a exigir nova confirmação. Nenhuma autorização é persistida
-// (nem em localStorage/sessionStorage, nem em variável que sobreviva além desta chamada).
+// (normal ou via este mesmo botão) volta a exigir nova confirmação. Nenhuma AUTORIZAÇÃO é persistida
+// em lugar nenhum (nem em localStorage/sessionStorage, nem em variável de escopo maior); o que fica
+// guardado na sessão é apenas o REGISTRO DE AUDITORIA em COPY_OVERRIDE_LOG, que não libera nada.
 function copiarComOverride(){
   if(!COPY_BLOCKED){ copiar(); return; }
   const motivo=currentCopyBlockReason();

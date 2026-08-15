@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-14T23:43:21.475Z",
+  "generatedAt": "2026-08-15T02:26:52.000Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -19,8 +19,8 @@
       "key": "candidate",
       "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
       "path": "output/RechDocs_v3.4.1.html",
-      "sha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356",
-      "bytes": 228776
+      "sha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4",
+      "bytes": 229123
     }
   },
   "results": {
@@ -78,7 +78,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356"
+        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
       }
     },
     "P0-02": {
@@ -220,7 +220,7 @@
             "consoleErrors": []
           }
         },
-        "artifactSha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356"
+        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
       }
     },
     "P0-03": {
@@ -375,7 +375,7 @@
             "statusAfterCancel": "Override de cópia cancelado. O bloqueio permanece.",
             "threwConfirm": null,
             "writesAfterConfirm": 1,
-            "auditListAfterConfirm": "⚠ Override de cópia em 2026-08-14T23:43:20.874Z — pendência(s) ignorada(s) por decisão humana: Pendencia critica sintetica para teste P0-03.",
+            "auditListAfterConfirm": "⚠ Override de cópia em 2026-08-15T02:26:50.695Z — pendência(s) ignorada(s) por decisão humana: Pendencia critica sintetica para teste P0-03.",
             "auditCardShownAfterConfirm": true,
             "copyBlockedAfterConfirm": true,
             "statusAfterConfirm": "Documento copiado mesmo com pendências — override registrado no log de auditoria desta sessão.",
@@ -400,7 +400,7 @@
             "test7": true
           }
         },
-        "artifactSha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356"
+        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
       }
     },
     "CI-05": {
@@ -437,7 +437,98 @@
           "unchanged": true,
           "sameReference": true
         },
-        "artifactSha256": "d9806bdb117a0faaeb925708b6edd37f959c865d6fba82b6f78c96a463707356"
+        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
+      }
+    },
+    "E2E-01": {
+      "baseline": {
+        "pass": null,
+        "failures": [],
+        "observed": {
+          "supported": false,
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667"
+      },
+      "reference": {
+        "pass": null,
+        "failures": [],
+        "observed": {
+          "supported": false,
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
+      },
+      "candidate": {
+        "pass": false,
+        "failures": [
+          "Cenario 3 (R-01, SEGURANCA): com pendencia critica ativa, uma edicao manual no preview liberou a copia sozinha (COPY_BLOCKED passou de true para false), sem confirmacao explicita e sem registro no audit log (audit=\"\"). Isso contorna a politica de copia do P0-03: copiar() apos a edicao escreveu 1 vez(es).",
+          "Cenario 3b (R-01, SEGURANCA): na pre-evolucao iniciada com pendencia bloqueante (baseBlocked=true), uma edicao no prefill-editor liberou copiar() sem passar por confirmarRevisaoPreEvolucao() (PREFILL_STATE.reviewed=false) e sem audit log — onPreEvolutionEdit() faz setCopyBlocked(true), mas o listener global de 'input' executa depois e reverte para false."
+        ],
+        "observed": {
+          "supported": true,
+          "generation": {
+            "outputCardVisible": true,
+            "outputTextLength": 1227,
+            "statusText": "Documento gerado — confira alertas/auditoria acima antes de assinar.",
+            "pendingText": "",
+            "copyBlockedAfterGeneration": false,
+            "pageErrors": []
+          },
+          "cleanCopy": {
+            "before": 0,
+            "writes": 1
+          },
+          "editUnderBlock": {
+            "copyBlockedBefore": true,
+            "copyBlockedAfterEdit": false,
+            "auditAfterEdit": "",
+            "writesAfterEdit": 1,
+            "prefillBypass": true,
+            "prefillReviewed": false
+          },
+          "blocked": {
+            "before": 3,
+            "copyBlocked": true,
+            "overrideButtonVisible": true,
+            "pendingText": "Pendencia critica sintetica de teste E2E.",
+            "writes": 0
+          },
+          "overrideCancelled": {
+            "beforeW": 3,
+            "beforeC": 0,
+            "writes": 0,
+            "confirmCalled": true,
+            "auditText": ""
+          },
+          "overrideConfirmed": {
+            "beforeW": 3,
+            "writes": 1,
+            "auditText": "⚠ Override de cópia em 2026-08-15T02:26:51.903Z — pendência(s) ignorada(s) por decisão humana: Pendencia critica sintetica de teste E2E.",
+            "auditCardVisible": true
+          },
+          "secondCopy": {
+            "beforeW": 4,
+            "copyBlockedStillTrue": true,
+            "writes": 0
+          },
+          "print": {
+            "threw": null,
+            "printCalls": 1
+          },
+          "reset": {
+            "outputEmpty": true,
+            "auditEmpty": true,
+            "copyBlocked": false,
+            "overrideLogLength": 0,
+            "outputCardHidden": true
+          },
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "1389ada2fb332abcf6a3a69562e4e94a9c300ebe182e31db076d9e5d6492c2c4"
       }
     }
   },
@@ -463,6 +554,10 @@
     "CI-05": {
       "label": "EXPECTED_CHANGE",
       "rationale": "Baseline nao tem essa funcao (N/A, esperado). reference: 5 caso(s) com falha — implementacao estruturalmente diferente da candidata (sem unidade, sem dedupe, agrupamento so por tipo), nao um defeito por criterio proprio; FAIL aqui reflete incompatibilidade de contrato entre as duas funcoes homonimas, nao um bug da referencia. candidate: todos os 6 casos OK, confirmando os 6 casos minimos descritos em CHANGE_IMPACT.md CI-05."
+    },
+    "E2E-01": {
+      "label": "REGRESSION",
+      "rationale": "Fluxo real de UI falhou na candidata — investigar antes de liberar release."
     }
   }
 }

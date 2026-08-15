@@ -1,5 +1,27 @@
 # Revalidação P0 — candidato atual (RechDocs v3.4.1)
 
+> ## ⚠ ESTADO SUPERADO — atualizado em 2026-08-15
+>
+> Este documento registra a revalidação de **2026-08-12**, quando nenhuma correção havia sido
+> aplicada. Os vereditos abaixo descrevem o candidato daquele momento
+> (SHA-256 `f8bf499b…`) e **não** o candidato atual (SHA-256 `d9806bdb…`).
+>
+> Estado atual, verificado no RELEASE GATE de 2026-08-15 (ver `reports/TEST_RESULTS.md`):
+>
+> | Item | Estado em 12/08 | **Estado atual** | Commit |
+> |---|---|---|---|
+> | P0-01 — vazamento entre episódios ventilatórios | FAIL | **✅ RESOLVED** | `abde96c` |
+> | P0-02a — empate simétrico | PASS (com alerta contraditório) | **✅ VERIFIED** (alerta único) | `c272509` |
+> | P0-02b / R-17 — empate assimétrico "VM ativa" × extubado | FAIL | **✅ RESOLVED** | `fba9b01` |
+> | P0-03 — política de cópia com override | FAIL (não implementada) | **✅ IMPLEMENTED / VERIFIED** | `53d7378` |
+> | CI-05 — compactação cumulativa de exames | PASS | **✅ VERIFIED** (6/6) | — |
+>
+> **Bloqueador aberto descoberto no gate:** R-01 / R-07 — edição manual libera a cópia sem
+> confirmação nem auditoria. Ver "Decisão pendente" em `reports/REGRESSION_RISKS.md`.
+>
+> Os itens listados na seção final "Itens que precisarão de reconciliação" foram executados:
+> R-02 e R-17 atualizados em `REGRESSION_RISKS.md`; P0-03 e CI-05 registrados em `CHANGE_IMPACT.md`.
+
 **Data:** 2026-08-12
 **Branch:** `claude/github-app-install-aft7xw`
 **Commit de freeze/scaffold anterior:** `b93fb134c54b6bcb1b288780239a49008d0c575f`

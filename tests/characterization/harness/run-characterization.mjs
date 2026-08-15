@@ -13,6 +13,7 @@ import * as p0_01 from '../fixtures/p0_01_vent_episode_leak.mjs';
 import * as p0_02 from '../fixtures/p0_02_vm_extubation_conflict.mjs';
 import * as p0_03 from '../fixtures/p0_03_copy_override_policy.mjs';
 import * as ci_05 from '../fixtures/ci_05_exam_compaction.mjs';
+import * as e2e_01 from '../fixtures/e2e_full_ui_flow.mjs';
 
 const ARTIFACTS = [
   { key: 'baseline', label: 'Baseline v3.3.12-P1 (congelada)', path: 'baseline/rech_docs_v3_3_12_P1.html' },
@@ -20,7 +21,7 @@ const ARTIFACTS = [
   { key: 'candidate', label: 'Candidata atual (output/RechDocs_v3.4.1.html)', path: 'output/RechDocs_v3.4.1.html' },
 ];
 
-const FIXTURES = [p0_01, p0_02, p0_03, ci_05];
+const FIXTURES = [p0_01, p0_02, p0_03, ci_05, e2e_01];
 
 async function main() {
   const artifactMeta = {};

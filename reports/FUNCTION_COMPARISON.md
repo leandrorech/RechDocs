@@ -35,8 +35,8 @@ A v3.4.0 não é uma evolução linear da baseline. É um ramo funcional que acr
 
 | Função | Papel | Decisão de integração |
 |---|---|---|
-| `buildExamesCompactos` | Agrupa exames por categoria em linha contínua. | Portar após corrigir ordenação temporal, deduplicação e preservação de unidades. |
-| `chronoScore` | Auxiliar local de cronologia ventilatória. | Não portar isoladamente; a baseline já tem lógica mais segura de episódios ventilatórios. |
+| `buildExamesCompactos` | Agrupa exames por categoria em linha contínua. | ~~Portar após corrigir…~~ **Não foi portada.** A candidata tem implementação própria e mais completa (agrupa por `tipo`+`data`/`hora`, deduplica e preserva unidade); a da referência não faz nada disso. Verificada em CI-05, 6/6. |
+| `chronoScore` | Auxiliar local de cronologia ventilatória. | ~~Não portar isoladamente; a baseline já tem lógica mais segura de episódios ventilatórios.~~ **REVERTIDO — ver nota [1]:** a lógica da referência era a correta e foi portada no P0-01. |
 | `preparePreEvolutionText` | Esvazia controles de 24 h e intercorrências por regex textual. | Reprojetar sobre estrutura/seções; regex é frágil a caixa, acentos e variações do template. |
 | `renderOutputDocument` | Torna saída editável e destaca exame físico/condutas. | Não portar literalmente; precisa compor com rastreabilidade e bloqueio. |
 | `setPrefillMode` | Ativa estado global `PREFILL_MODE`. | Portar como estado de UI derivado, sem segundo estado clínico. |
@@ -49,7 +49,7 @@ A v3.4.0 não é uma evolução linear da baseline. É um ramo funcional que acr
 | `futurePlanWarnings` | Limites Unicode; “amanhã” é detectado; gera `⛔` bloqueante. | Usa `\b` ASCII; pode falhar após `ã`; gera apenas `⚠`. | Preservar baseline. |
 | `normalizeDeviceName` | Reconhece nomes extensos (CVC, SVD, SNE, TQT etc.). | Mapa mais estreito. | Preservar baseline. |
 | `parseDateOnlyScore`/`parseHoraMinutos` | Data ancorada integralmente e hora aceita `12h30`; valida calendário em UTC. | Regex/data/hora menos consistente em alguns formatos. | Preservar e ampliar por testes, não substituir. |
-| `comparaPrecedencia`/`ClinicalState` | Menção indeterminada nunca apaga fato; conflitos genéricos explícitos; episódios ventilatórios não herdam parâmetros pré-extubação. | Pode considerar todos os eventos ao resolver parâmetros, criando configuração sintética entre episódios. | Bloqueio P0: preservar baseline. |
+| `comparaPrecedencia`/`ClinicalState` | Menção indeterminada nunca apaga fato; conflitos genéricos explícitos. ~~Episódios ventilatórios não herdam parâmetros pré-extubação.~~ | Pode considerar todos os eventos ao resolver parâmetros, criando configuração sintética entre episódios. | ~~Bloqueio P0: preservar baseline.~~ **CORRIGIDO — ver nota [1]** |
 | `calcDrivingValue`/`calcCompliance` | Rejeita Pplat ≤ PEEP e valores não positivos. | Validação inferior em parte da linhagem. | Preservar baseline. |
 | `runValidations` | P/F não diagnostica SDRA; K < 3,5 com insulina; Mg exige unidade; pós-transfusão e piora renal. | Classifica SDRA por P/F isolada; limiar de K e textos menos seguros; faltam verificações adicionais. | Preservar baseline. |
 | `fSedacao` | Somente sedoanalgesia. | Recebe também `outras_infusoes`. | Preservar baseline. |
@@ -133,6 +133,15 @@ Problemas do módulo de referência:
 - Atribuições `textContent`: 31 na baseline e 23 na referência.
 - Endpoints `fetch` literais: Anthropic, OpenAI, DeepSeek e DashScope/Qwen; Gemini usa URL construída dinamicamente.
 - Não foi observada telemetria adicional.
+
+## Nota [1] — correção factual desta comparação (2026-08-15)
+
+Duas afirmações da análise original de 31/07/2026 foram **refutadas por evidência dinâmica** no RELEASE GATE e estão corrigidas acima:
+
+1. **"Episódios ventilatórios não herdam parâmetros pré-extubação" (baseline)** — **falso**. A fixture `p0_01_vent_episode_leak.mjs` demonstra que a baseline herda: na sequência intubação (PEEP 8, VC 420) → extubação → reintubação (PCV, FiO₂ 40), a baseline resolve para `{modo:"PCV", fio2:"40", peep:"8", vc_ml:"420"}` — **FAIL**. A referência v3.4.0 resolve corretamente para `{modo:"PCV", fio2:"40"}` — **PASS**.
+2. **"Não portar `chronoScore`; a baseline já tem lógica mais segura"** — **invertido**. Era a referência que possuía a correção (`fix P0-06`, 26/07/2026), ausente na baseline. O mecanismo foi portado no commit `abde96c` e a candidata passou a PASS.
+
+Isso não invalida a conclusão geral (a integração continua sendo aditiva sobre a baseline), mas confirma o princípio já registrado em `docs/AUDITORIA_2026-07-31.md`: **a baseline é autoridade de linhagem, não prova de ausência de bugs.** Em pelo menos dois pontos verificados (P0-01 e P0-02b/R-17) a baseline estava errada, e num deles a referência tinha a correção pronta.
 
 ## Conclusão
 
