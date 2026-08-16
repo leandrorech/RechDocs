@@ -2,9 +2,10 @@ name: Apply RechDocs P0 clinical rules
 
 on:
   push:
-    branches: [fix/rechdocs-p0-clinical-rules-20260816]
+    branches:
+      - fix/rechdocs-p0-clinical-rules-20260816
     paths:
-      - '.github/workflows/apply-rechdocs-hotfix.yml'
+      - .github/workflows/apply-rechdocs-hotfix.yml
   workflow_dispatch:
 
 permissions:
@@ -14,374 +15,43 @@ jobs:
   patch-test-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout branch
+        uses: actions/checkout@v4
         with:
           ref: fix/rechdocs-p0-clinical-rules-20260816
 
-      - name: Apply P0 clinical/documental corrections
-        shell: bash
+      - name: Apply clinical rules
+        run: python scripts/apply_p0_clinical_rules.py
+
+      - name: Install dependencies
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          p=Path('output/RechDocs_v3.4.1.html')
-          s=p.read_text(encoding='utf-8')
-          original=s
-
-          def sub1(pattern,repl,flags=0,label='pattern'):
-              global s
-              new,n=re.subn(pattern,lambda m: repl,s,count=1,flags=flags)
-              if n!=1:
-                  raise SystemExit(f'{label}: expected 1 replacement, got {n}')
-              s=new
-
-          # 1) Temporalidade: permitir a frase explícita quando a fonte não tem data e exigir âncora absoluta quando houver.
-          s=s.replace(
-            'NUNCA escreva "citado previamente", "conforme documento anterior", "de acordo com evolução" — isso denuncia texto gerado por IA. Cite datas apenas quando clinicamente úteis (dia de tratamento, início/fim de uso).',
-            'NUNCA escreva "citado previamente", "conforme documento anterior", "de acordo com evolução" — isso denuncia texto gerado por IA. EXCEÇÃO obrigatória: quando uma expressão temporal relativa vier de fonte sem data identificável, deixe explícito "conforme documento sem data registrada". Sempre normalize hoje/ontem/amanhã e intervalos relativos para data absoluta quando a data do documento-fonte for conhecida; preserve aproximação quando a fonte disser "cerca de"/"aproximadamente".'
-          )
-
-          temporal_rules='''1c. CRÍTICO — TEMPORALIDADE/ÂNCORA: expressões relativas ("hoje", "ontem", "amanhã", "há X dias/semanas/meses", "semana passada") pertencem à DATA DO DOCUMENTO-FONTE, não à data atual do aplicativo. Se a data do documento-fonte for conhecida, converta a referência para data absoluta (dd/mm/aaaa quando o ano estiver disponível) e preserve o estado do evento: "amanhã fará" vira "programado para DD/MM/AAAA", NUNCA "realizado". Se a expressão for aproximada, a data derivada continua aproximada. Se a data do documento-fonte NÃO puder ser determinada, NÃO invente data: em campos narrativos use explicitamente "conforme documento sem data registrada, há X..." (ou formulação equivalente que deixe a ausência da âncora inequívoca) e, em campos estruturados, mantenha data=null.\n1d. CRÍTICO — OUTRAS INFUSÕES CONTÍNUAS: este array é EXCLUSIVAMENTE para fármacos realmente mantidos em infusão contínua, sem esquema intermitente de horário, e que não pertençam a DVA, sedação/analgesia, BNM, ATB ou antitrombóticos. "Em BIC"/"em bomba" isoladamente NÃO significa contínuo. Cefepime 8/8h infundido em 3h, piperacilina/tazobactam 6/6h correndo em 1h, ou qualquer fármaco 6/6h, 8/8h, 12/12h, 24/24h/1x-dia continuam INTERMITENTES e NÃO entram em outras_infusoes. Evidência típica de contínuo: taxa sustentada (mL/h, mg/h, mcg/h, mcg/kg/min, UI/h, U/h, mg/min) ou texto explícito "infusão contínua"/"manter continuamente".\n'''
-          marker='2. NÃO decida qual versão vence — extraia TODAS as menções'
-          if temporal_rules not in s:
-              if marker not in s: raise SystemExit('temporal insertion marker missing')
-              s=s.replace(marker,temporal_rules+marker,1)
-
-          new_exam_rules='''8. EXAMES: NUNCA versione nem descarte exames. TODO exame fornecido deve ser extraído, inclusive exames não previstos em listas fechadas: laboratório, gasometria, cultura, ECG, ecocardiograma, radiografia, TC, RM, ultrassom, Doppler, endoscopia, broncoscopia, anatomopatológico e qualquer outro. Use tipo="outro" quando nenhuma categoria específica servir. Cada exame é evento histórico e deve manter sua temporalidade individual. Estrutura: "exames": [{"tipo":"lab"|"imagem"|"gasometria"|"cultura"|"outro","nome":"","resultado":"","unidade":"","data":"","hora":""}]. Se houver unidade explícita, extraia-a separadamente em "unidade"; NÃO a repita dentro de "resultado". Se a data do exame for explícita, use-a. Se houver referência relativa e a data do documento-fonte for conhecida, resolva a data conforme 1c. Sem âncora confiável, data=null — nunca invente.\n8a. HEMOGRAMA — ÚNICA EXCEÇÃO DE SELEÇÃO: no output clínico do hemograma devem permanecer apenas Hb, Ht, leucócitos e plaquetas. Não transportar automaticamente hemácias, VCM, HCM, CHCM, RDW, diferencial leucocitário ou índices plaquetários para o documento final. Esta restrição vale SOMENTE para o hemograma. Todos os demais exames devem ser preservados integralmente.\n8b. INTERPRETAÇÃO/PRESERVAÇÃO: para laudos e exames não laboratoriais, preserve todos os achados/conclusões explicitamente fornecidos; não descarte um exame por ser desconhecido. Para exames seriados, mantenha cada data/hora separada para permitir tendência. Não invente diagnóstico, causalidade ou gravidade além do laudo/fonte; qualquer síntese/reformulação deve continuar declarada em rastreabilidade.\n\n8c. INTERCONSULTAS:'''
-          sub1(r'8\. EXAMES:.*?\n\n8c\. INTERCONSULTAS:',new_exam_rules,flags=re.S,label='exam rules')
-
-          new_inter='''8c. INTERCONSULTAS: cada solicitação/parecer de especialidade é evento histórico próprio e deve ser mantido. Extraia "interconsultas": [{"especialidade":"","motivo":"","parecer":"","status":"solicitada"|"aguardando"|"realizada"|"reavaliada"|"acompanhamento"|"encerrada","data":"","hora":""}]. Solicitação NÃO é parecer realizado: se só houver "solicitada avaliação de X", status="solicitada" e parecer=null. Parecer efetivamente descrito usa status="realizada" (ou reavaliada/acompanhamento quando explícito) e preserva a orientação. Temporalidade segue 1c: referência relativa + documento datado deve ser convertida para data absoluta; sem âncora confiável, data=null e a ausência deve permanecer explícita no output — nunca invente nem reutilize data de outro documento. Interconsultas da mesma especialidade em datas distintas são eventos distintos e não se substituem.\n9. VENTILATÓRIO:'''
-          sub1(r'8c\. INTERCONSULTAS:.*?\n9\. VENTILATÓRIO:',new_inter,flags=re.S,label='interconsult rules')
-
-          s=s.replace('"exames": [{"tipo":"","nome":"","resultado":"","data":"","hora":""}]',
-                      '"exames": [{"tipo":"","nome":"","resultado":"","unidade":"","data":"","hora":""}]')
-          s=s.replace('"interconsultas": [{"especialidade":"","motivo":"","parecer":"","status":"","data":"","hora":""}]',
-                      '"interconsultas": [{"especialidade":"","motivo":"","parecer":"","status":"solicitada|aguardando|realizada|reavaliada|acompanhamento|encerrada","data":"","hora":""}]')
-
-          # 2) Outras infusões: BIC não basta; regime intermitente sempre perde para a classificação contínua.
-          old='''function fOutrasInfusoes(outras){\n  const itens=(outras||[]).filter(o=>o.droga).map(o=>{let r=o.droga; if(o.dose)r+=` ${o.dose} ${o.unidade||''}`; return r.trim();});\n  return itens.length?itens.join('\\n'):'---';\n}'''
-          new='''function isContinuousInfusion(o){
-  if(!o||!cleanStr(o.droga))return false;
-  const raw=[o.droga,o.dose,o.unidade,o.regime,o.detalhe].map(cleanStr).filter(Boolean).join(' ');
-  // Qualquer esquema de horário ou duração finita explícita torna a administração INTERMITENTE,
-  // mesmo que o texto diga BIC/bomba. Ex.: Tazo 6/6h correr em 1h em BIC NÃO é contínuo.
-  const intermittent=/\\b(?:1x\\s*\\/?\\s*dia|24\\s*\\/\\s*24|12\\s*\\/\\s*12|8\\s*\\/\\s*8|6\\s*\\/\\s*6|4\\s*\\/\\s*4|2\\s*\\/\\s*2)\\s*h?\\b/i.test(raw)
-    || /\\b(?:correr|infundir|administrar)\\s+(?:em|por)\\s+\\d+(?:[.,]\\d+)?\\s*(?:h|hora|horas|min|minuto|minutos)\\b/i.test(raw);
-  if(intermittent)return false;
-  return /\\b(?:ml|mg|mcg|µg|ug|ui|u)\\s*\\/\\s*h\\b/i.test(raw)
-    || /\\b(?:mg|mcg|µg|ug)\\s*\\/\\s*kg\\s*\\/\\s*min\\b/i.test(raw)
-    || /\\b(?:mg|mcg|µg|ug)\\s*\\/\\s*min\\b/i.test(raw)
-    || /\\binfus[aã]o\\s+cont[ií]nua\\b/i.test(raw)
-    || /\\b(?:manter\\s+)?continuamente\\b/i.test(raw)
-    || /\\bcont[ií]nu[oa]\\b/i.test(raw);
-}
-function fOutrasInfusoes(outras){
-  const itens=(outras||[]).filter(o=>o.droga&&isContinuousInfusion(o)).map(o=>{let r=o.droga; if(o.dose)r+=` ${o.dose} ${o.unidade||''}`; return r.trim();});
-  return itens.length?itens.join('\\n'):'---';
-}'''
-          if old not in s: raise SystemExit('fOutrasInfusoes exact block missing')
-          s=s.replace(old,new,1)
-
-          # 3) Hemograma: somente Hb/Ht/Leuco/Plaq. Demais exames: TODOS. Unidade preservada internamente, omitida no output.
-          exam_helpers='''function hemogramComponentClass(name){
-  const k=keyName(name);
-  if(/^(hb|hemoglobina|ht|hematocrito|leuco|leucocitos|leucocito|plaq|plaquetas|plaqueta)$/.test(k))return'keep';
-  if(/^(hemacias|hemacia|eritrocitos|eritrocito|vcm|hcm|chcm|rdw|neutrofilos|neutrofilo|segmentados|segmentado|bastoes|bastao|linfocitos|linfocito|monocitos|monocito|eosinofilos|eosinofilo|basofilos|basofilo|vpm|pdw)$/.test(k))return'drop';
-  return'other';
-}
-function compactHemogramResult(result){
-  const text=cleanStr(result);
-  if(!text)return text;
-  const defs=[
-    ['Hb',/(?:^|[\\s|;,])(?:hb|hemoglobina)\\s*[:=]?\\s*([<>]?\\s*\\d+(?:[.,]\\d+)?)/i],
-    ['Ht',/(?:^|[\\s|;,])(?:ht|hemat[oó]crito)\\s*[:=]?\\s*([<>]?\\s*\\d+(?:[.,]\\d+)?)/i],
-    ['Leuco',/(?:^|[\\s|;,])(?:leuco(?:citos?)?|leuc[oó]citos?)\\s*[:=]?\\s*([<>]?\\s*\\d+(?:[.,]\\d+)?)/i],
-    ['Plaq',/(?:^|[\\s|;,])(?:plaq(?:uetas?)?|plaquetas?)\\s*[:=]?\\s*([<>]?\\s*\\d+(?:[.,]\\d+)?)/i]
-  ];
-  const out=[];
-  defs.forEach(([label,re])=>{const m=text.match(re);if(m)out.push(`${label} ${cleanStr(m[1])}`);});
-  return out.length?out.join(' | '):text;
-}
-function normalizeExamsForOutput(exams){
-  const out=[];
-  asArray(exams).forEach(e=>{
-    if(!e||!cleanStr(e.nome))return;
-    const k=keyName(e.nome);
-    if(k.startsWith('hemograma')||/^hmg(?:\\s|$)/.test(k)){
-      out.push({...e,resultado:compactHemogramResult(e.resultado)});
-      return;
-    }
-    if(hemogramComponentClass(e.nome)==='drop')return;
-    out.push({...e});
-  });
-  return out;
-}
-function examResultForOutput(e){
-  let result=cleanStr(e&&e.resultado), unit=cleanStr(e&&e.unidade);
-  if(result&&unit){
-    const esc=unit.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&');
-    result=result.replace(new RegExp('\\\\s*'+esc+'\\\\s*$','i'),'').trim();
-  }
-  return result;
-}
-'''
-          if exam_helpers not in s:
-              s=s.replace('function buildExames(d){',exam_helpers+'function buildExames(d){',1)
-
-          old_build='''function buildExames(d){
-  const lines=[];
-  const exArr=asArray(d.exames);
-  if(exArr.length){
-    const byTipo={};
-    exArr.forEach(e=>{ const t=e.tipo||'outro'; if(!byTipo[t])byTipo[t]=[]; byTipo[t].push(e); });
-    const labels={lab:'LABORATORIAIS',imagem:'IMAGEM',gasometria:'GASOMETRIA',cultura:'CULTURAS',outro:'OUTROS'};
-    for(const t of ['lab','gasometria','cultura','imagem','outro']){
-      if(!byTipo[t])continue;
-      lines.push(labels[t]+':');
-      byTipo[t].forEach(e=>{ let s=e.nome; if(e.data)s+=` (${e.data}${e.hora?' '+e.hora:''})`; if(e.resultado)s+=`: ${e.resultado}`; lines.push(s); });
-    }
-  }
-  // fallback legado, caso a extração ainda venha no formato antigo exames_lab/exames_imagem
-  if(!exArr.length && d.exames_lab&&d.exames_lab.length){ lines.push('LABORATORIAIS:'); d.exames_lab.forEach(e=>{const s=examStr(e);if(s)lines.push(s);}); }
-  if(!exArr.length && d.exames_imagem&&d.exames_imagem.length){ lines.push('IMAGEM:'); d.exames_imagem.forEach(e=>{const s=examStr(e);if(s)lines.push(s);}); }
-  return lines.length?lines.join('\\n'):'---';
-}'''
-          new_build='''function buildExames(d){
-  const lines=[];
-  const exArr=sortAndDedupeExams(normalizeExamsForOutput(d.exames));
-  if(exArr.length){
-    const byTipo={};
-    exArr.forEach(e=>{ const t=['lab','imagem','gasometria','cultura','outro'].includes(e.tipo)?e.tipo:'outro'; if(!byTipo[t])byTipo[t]=[]; byTipo[t].push(e); });
-    const labels={lab:'LABORATORIAIS',imagem:'IMAGEM',gasometria:'GASOMETRIA',cultura:'CULTURAS',outro:'OUTROS'};
-    for(const t of ['lab','gasometria','cultura','imagem','outro']){
-      if(!byTipo[t])continue;
-      lines.push(labels[t]+':');
-      byTipo[t].forEach(e=>{
-        let row=cleanStr(e.nome);
-        row+=e.data?` (${e.data}${e.hora?' '+e.hora:''})`:' (SEM DATA REGISTRADA)';
-        const result=examResultForOutput(e); if(result)row+=`: ${result}`;
-        lines.push(row);
-      });
-    }
-  }
-  // fallback legado, caso a extração ainda venha no formato antigo exames_lab/exames_imagem
-  if(!exArr.length && d.exames_lab&&d.exames_lab.length){ lines.push('LABORATORIAIS:'); d.exames_lab.forEach(e=>{const x=examStr(e);if(x)lines.push(x);}); }
-  if(!exArr.length && d.exames_imagem&&d.exames_imagem.length){ lines.push('IMAGEM:'); d.exames_imagem.forEach(e=>{const x=examStr(e);if(x)lines.push(x);}); }
-  return lines.length?lines.join('\\n'):'---';
-}'''
-          if old_build not in s: raise SystemExit('buildExames exact block missing')
-          s=s.replace(old_build,new_build,1)
-
-          old_fmt='''function formatCompactExam(e){
-  let result=cleanStr(e.resultado), unit=cleanStr(e.unidade);
-  if(unit&&result&&!keyName(result).includes(keyName(unit)))result+=` ${unit}`;
-  else if(unit&&!result)result=unit;
-  return `${cleanStr(e.nome)}${result?`: ${result}`:''}`;
-}'''
-          new_fmt='''function formatCompactExam(e){
-  const result=examResultForOutput(e);
-  return `${cleanStr(e.nome)}${result?`: ${result}`:''}`;
-}'''
-          if old_fmt not in s: raise SystemExit('formatCompactExam block missing')
-          s=s.replace(old_fmt,new_fmt,1)
-          s=s.replace('const exams=sortAndDedupeExams(d&&d.exames);','const exams=sortAndDedupeExams(normalizeExamsForOutput(d&&d.exames));',1)
-          s=s.replace("renderGroup('SEM DATA INFORMADA',undated)","renderGroup('SEM DATA REGISTRADA',undated)",1)
-
-          # 4) Interconsultas: ausência de data fica explícita no corpo; solicitação != parecer.
-          old_inter='''function buildInterconsultas(d){
-  const arr=asArray(d.interconsultas).filter(i=>i&&i.especialidade);
-  if(!arr.length)return'---';
-  return arr.map(i=>{
-    // Ausência de data continua visível no card de conflitos/pendências, mas não é injetada como
-    // marcador técnico dentro do documento clínico pronto. Quando existe, a data permanece explícita.
-    const dataStr=i.data?`[${i.data}${i.hora?' '+i.hora:''}] `:'';
-    let s=`${dataStr}${i.especialidade.toUpperCase()}`;
-    if(i.status)s+=` — ${String(i.status).toUpperCase()}`;
-    if(i.motivo)s+=`\\n  Motivo: ${i.motivo}`;
-    if(i.parecer)s+=`\\n  Parecer: ${i.parecer}`;
-    return s;
-  }).join('\\n');
-}'''
-          new_interfn='''function buildInterconsultas(d){
-  const arr=asArray(d.interconsultas).filter(i=>i&&i.especialidade);
-  if(!arr.length)return'---';
-  return arr.map(i=>{
-    const dataStr=i.data?`[${i.data}${i.hora?' '+i.hora:''}] `:'[SEM DATA REGISTRADA] ';
-    let out=`${dataStr}${String(i.especialidade).toUpperCase()}`;
-    if(i.status)out+=` — ${String(i.status).toUpperCase()}`;
-    if(i.motivo)out+=`\\n  Motivo: ${i.motivo}`;
-    if(i.parecer)out+=`\\n  Parecer: ${i.parecer}`;
-    return out;
-  }).join('\\n');
-}'''
-          if old_inter not in s: raise SystemExit('buildInterconsultas exact block missing')
-          s=s.replace(old_inter,new_interfn,1)
-          s=s.replace('Interconsultas: mesma lógica de exames — nunca versiona/sobrescreve, apenas acumula\n  // cronologicamente. Data é OBRIGATÓRIA e nunca inferida; ausência é sinalizada como\n  // conflito explícito para revisão manual (nunca silenciosa).',
-                      'Interconsultas: nunca versiona/sobrescreve; acumula cronologicamente. Data nunca é inventada.\n  // Quando faltar âncora temporal, a ausência permanece explícita no output e no painel de atenção.')
-          s=s.replace('interconsulta(s) sem data — não é possível posicionar na linha do tempo. Confirme manualmente:',
-                      'interconsulta(s) sem data/âncora temporal — mantida(s) explicitamente como SEM DATA REGISTRADA; confirme a cronologia quando possível:')
-
-          # 5) Alertas determinísticos para regressões de temporalidade e classificação de infusão.
-          temporal_helper='''function collectTemporalAnchoringWarnings(d){
-  const vals=[d&&d.hda,d&&d.admissao_uti,d&&d.evolucao_medica,d&&d.intercorrencias,d&&d.impressao_clinica,...asArray(d&&d.condutas)];
-  asArray(d&&d.interconsultas).forEach(i=>{vals.push(i&&i.motivo,i&&i.parecer);});
-  const rel=/\\b(?:hoje|ontem|amanh[aã]|h[aá]\\s+(?:cerca\\s+de\\s+|aproximadamente\\s+)?\\d+\\s+(?:dia|dias|semana|semanas|m[eê]s|meses|hora|horas))\\b/i;
-  const date=/\\b\\d{1,2}[\\/-]\\d{1,2}(?:[\\/-]\\d{2,4})?\\b/;
-  const explicitUnknown=/documento\\s+sem\\s+data(?:\\s+registrada)?/i;
-  const warns=[];
-  vals.filter(Boolean).forEach(v=>String(v).split(/\\n+/).forEach(line=>{
-    if(rel.test(line)&&!date.test(line)&&!explicitUnknown.test(line))warns.push(`⚠ Referência temporal relativa sem âncora explícita no texto final: "${cleanStr(line).slice(0,160)}". Converter pela data da fonte ou declarar documento sem data.`);
-  }));
-  return [...new Set(warns)];
-}
-'''
-          if temporal_helper not in s:
-              s=s.replace('function runValidations(d,engineWarnings){',temporal_helper+'function runValidations(d,engineWarnings){',1)
-          s=s.replace('const warns=[...(engineWarnings||[])];\n  if(d.monitor)',
-                      "const warns=[...(engineWarnings||[])];\n  warns.push(...collectTemporalAnchoringWarnings(d));\n  const invalidas=asArray(d.outras_infusoes).filter(o=>o&&o.droga&&!isContinuousInfusion(o));\n  if(invalidas.length)warns.push(`⛔ OUTRAS INFUSÕES CONTÍNUAS recebeu regime não contínuo/intermitente (${invalidas.map(o=>o.droga).join(', ')}). Esses itens foram ocultados dessa linha; reclassifique na seção correta.`);\n  if(d.monitor)",1)
-          s=s.replace("const insulinaAtiva=hasActiveDrug(d.outras_infusoes,[/insulina/i],'droga') || hasActiveDrug(d.sedacao,[/insulina/i],'droga') || hasActiveDrug(d.dva,[/insulina/i],'droga');",
-                      "const insulinaAtiva=hasActiveDrug(asArray(d.outras_infusoes).filter(isContinuousInfusion),[/insulina/i],'droga') || hasActiveDrug(d.sedacao,[/insulina/i],'droga') || hasActiveDrug(d.dva,[/insulina/i],'droga');")
-
-          # 6) Remover linguagem residual de bloqueio no painel crítico.
-          s=s.replace('Existe alerta crítico bloqueante no card de alertas.','Existe alerta crítico no card de alertas; revise antes de usar o documento.')
-          s=s.replace('Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar.','Existe conflito de estado não resolvido; confirme/corrija os dados antes de usar o documento.')
-
-          # 7) API mínima para E2E das novas regras.
-          old_api='window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG};'
-          new_api='window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG,isContinuousInfusion,normalizeExamsForOutput,compactHemogramResult,formatCompactExam,buildExames,buildExamesCompactos,buildInterconsultas,collectTemporalAnchoringWarnings,buildSystemPrompt};'
-          if old_api not in s: raise SystemExit('test API marker missing')
-          s=s.replace(old_api,new_api,1)
-
-          # Assertions estruturais antes de gravar.
-          required=[
-            'function isContinuousInfusion(o)',
-            'function normalizeExamsForOutput(exams)',
-            '[SEM DATA REGISTRADA]',
-            'OUTRAS INFUSÕES CONTÍNUAS: este array é EXCLUSIVAMENTE',
-            'HEMOGRAMA — ÚNICA EXCEÇÃO DE SELEÇÃO',
-            'conforme documento sem data registrada',
-            'status="solicitada"|"aguardando"|"realizada"',
-          ]
-          for x in required:
-              if x not in s: raise SystemExit('missing required patch: '+x)
-          if s==original: raise SystemExit('no changes applied')
-          p.write_text(s,encoding='utf-8')
-
-          Path('reports/P0_CLINICAL_RULES_2026-08-16.md').write_text('''# RechDocs v3.4.1 — P0 clinical rules — 2026-08-16
-
-Implementação baseada nas decisões funcionais confirmadas nesta rodada.
-
-## Regras aplicadas
-- Ventilação: preservado o fix já existente de fronteira por episódio; reintubação não herda parâmetros antigos.
-- Pendências: WARN-NOT-BLOCK preservado; edição/cópia/impressão livres com aviso crítico persistente.
-- Temporalidade: hoje/ontem/amanhã e intervalos relativos usam a data da fonte; sem data da fonte, a ausência da âncora deve ser declarada explicitamente e nenhuma data é inventada.
-- Outras infusões contínuas: somente regime realmente contínuo. BIC/bomba isoladamente não qualifica. Administração 6/6h, 8/8h, 12/12h, 24/24h ou com duração finita é intermitente.
-- Laboratórios: apenas HMG tem filtro específico (Hb/Ht/Leuco/Plaq). Todos os demais exames são preservados.
-- Unidades: preservadas no estado estruturado, omitidas da apresentação compacta quando redundantes.
-- Exames: qualquer exame deve ser extraído; desconhecidos usam tipo `outro`; temporalidade individual preservada.
-- Interconsultas: solicitação não equivale a parecer realizado; status ampliados; ausência de data fica explícita no documento.
-
-## Não alterado
-- Baseline `baseline/rech_docs_v3_3_12_P1.html` permanece intocada.
-- Não houve reescrita do `ClinicalState` nem criação de parser paralelo.
-''',encoding='utf-8')
-          PY
-
-      - name: Create focused browser regression suite
-        shell: bash
-        run: |
-          cat > tests/p0-clinical-rules.mjs <<'EOF'
-          import { chromium } from 'playwright';
-          import path from 'node:path';
-          import { pathToFileURL } from 'node:url';
-
-          const file=path.resolve('output/RechDocs_v3.4.1.html');
-          const browser=await chromium.launch({headless:true});
-          const page=await browser.newPage();
-          await page.goto(pathToFileURL(file).href,{waitUntil:'domcontentloaded'});
-
-          const result=await page.evaluate(()=>{
-            const a=window.__RECH_TEST_API;
-            const assert=(cond,msg)=>{if(!cond)throw new Error(msg)};
-
-            assert(a.isContinuousInfusion({droga:'Insulina regular',dose:'2 UI/h'})===true,'insulina 2 UI/h deve ser contínua');
-            assert(a.isContinuousInfusion({droga:'Noradrenalina',dose:'0,1 mcg/kg/min'})===true,'norad mcg/kg/min deve ser contínua');
-            assert(a.isContinuousInfusion({droga:'Cefepime',dose:'2 g EV 8/8 h, infundir em 3 horas em BIC'})===false,'cefepime 8/8h em BIC NÃO é contínuo');
-            assert(a.isContinuousInfusion({droga:'Piperacilina/tazobactam',dose:'4,5 g 6/6 h correr em 1 hora em bomba'})===false,'Tazo 6/6h em bomba NÃO é contínuo');
-            assert(a.isContinuousInfusion({droga:'Furosemida',dose:'em BIC'})===false,'BIC isoladamente NÃO prova contínuo');
-
-            const exams=a.normalizeExamsForOutput([
-              {tipo:'lab',nome:'Hemograma',resultado:'Hb 8,2 | Ht 25 | Hemácias 2,9 | VCM 87 | HCM 28 | CHCM 33 | RDW 15 | Leuco 13.400 | Plaq 190.000',data:'14/08/2026'},
-              {tipo:'lab',nome:'VCM',resultado:'87',unidade:'fL',data:'14/08/2026'},
-              {tipo:'lab',nome:'Na',resultado:'138',unidade:'mEq/L',data:'14/08/2026'},
-              {tipo:'lab',nome:'PCR',resultado:'12',unidade:'mg/L',data:'14/08/2026'},
-              {tipo:'outro',nome:'ECG',resultado:'Ritmo sinusal',data:'14/08/2026'}
-            ]);
-            const h=exams.find(x=>/hemograma/i.test(x.nome));
-            assert(h&&/Hb 8,2/.test(h.resultado)&&/Ht 25/.test(h.resultado)&&/Leuco 13\.400/.test(h.resultado)&&/Plaq 190\.000/.test(h.resultado),'HMG deve manter Hb/Ht/Leuco/Plaq');
-            assert(!/VCM|HCM|CHCM|RDW|Hemácias/i.test(h.resultado),'HMG não deve manter eritrograma expandido');
-            assert(!exams.some(x=>x.nome==='VCM'),'VCM isolado do HMG deve sair do output');
-            assert(exams.some(x=>x.nome==='Na')&&exams.some(x=>x.nome==='PCR')&&exams.some(x=>x.nome==='ECG'),'demais exames devem permanecer');
-            assert(a.formatCompactExam({nome:'Na',resultado:'138',unidade:'mEq/L'})==='Na: 138','unidade redundante não deve aparecer no compacto');
-
-            const inter=a.buildInterconsultas({interconsultas:[{especialidade:'Nefrologia',status:'solicitada',motivo:'avaliar LRA',data:null,parecer:null}]});
-            assert(/SEM DATA REGISTRADA/.test(inter),'interconsulta sem data deve ficar explícita');
-            assert(/SOLICITADA/.test(inter)&&!/Parecer:/i.test(inter),'solicitação não pode virar parecer realizado');
-
-            const tw1=a.collectTemporalAnchoringWarnings({hda:'Ontem apresentou piora.',condutas:[],interconsultas:[]});
-            assert(tw1.length===1,'ontem sem data precisa alertar');
-            const tw2=a.collectTemporalAnchoringWarnings({hda:'Em 14/08/2026 apresentou piora.',condutas:[],interconsultas:[]});
-            assert(tw2.length===0,'data absoluta não deve alertar');
-            const tw3=a.collectTemporalAnchoringWarnings({hda:'Conforme documento sem data registrada, há 30 dias iniciou dispneia.',condutas:[],interconsultas:[]});
-            assert(tw3.length===0,'ausência de âncora explicitamente declarada não deve gerar alerta redundante');
-
-            const prompt=a.buildSystemPrompt('evolucao',{});
-            assert(prompt.includes('OUTRAS INFUSÕES CONTÍNUAS: este array é EXCLUSIVAMENTE'),'prompt deve conter contrato de infusão contínua');
-            assert(prompt.includes('HEMOGRAMA — ÚNICA EXCEÇÃO DE SELEÇÃO'),'prompt deve conter regra específica do HMG');
-            assert(prompt.includes('conforme documento sem data registrada'),'prompt deve conter regra temporal sem âncora');
-            assert(prompt.includes('Solicitação NÃO é parecer realizado'),'prompt deve separar solicitação de parecer');
-            return 'P0 clinical rules: PASS';
-          });
-          console.log(result);
-          await browser.close();
-          EOF
-
-      - name: Install test runtime
-        shell: bash
-        run: |
-          set -euo pipefail
           npm ci
           npx playwright install --with-deps chromium
 
-      - name: Static audit + syntax
-        shell: bash
+      - name: Static audit
+        run: python tests/static_audit.py output/RechDocs_v3.4.1.html
+
+      - name: JavaScript syntax
         run: |
-          set -euo pipefail
-          python tests/static_audit.py output/RechDocs_v3.4.1.html
           python - <<'PY'
           from pathlib import Path
           import re
-          s=Path('output/RechDocs_v3.4.1.html').read_text(encoding='utf-8')
-          scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
-          Path('/tmp/rechdocs.js').write_text('\n'.join(scripts),encoding='utf-8')
+          s = Path('output/RechDocs_v3.4.1.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', s, re.I)
+          Path('/tmp/rechdocs.js').write_text('\n'.join(scripts), encoding='utf-8')
           PY
           node --check /tmp/rechdocs.js
 
-      - name: Focused P0 E2E
-        shell: bash
+      - name: Focused P0 browser regressions
         run: node tests/p0-clinical-rules.mjs
 
       - name: Existing characterization suite
-        shell: bash
         run: node tests/characterization/harness/run-characterization.mjs
 
-      - name: Commit corrected candidate and tests
-        shell: bash
+      - name: Commit corrected candidate
         run: |
-          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add output/RechDocs_v3.4.1.html reports/P0_CLINICAL_RULES_2026-08-16.md tests/p0-clinical-rules.mjs
+          git add output/RechDocs_v3.4.1.html reports/P0_CLINICAL_RULES_2026-08-16.md
           git commit -m 'fix: enforce temporal exams infusion and interconsult rules'
           git push origin HEAD:fix/rechdocs-p0-clinical-rules-20260816
