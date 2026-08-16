@@ -37,6 +37,11 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+          CHROME="$(find "$HOME/.cache/ms-playwright" -type f -path '*/chrome-linux*/chrome' | head -n 1)"
+          test -n "$CHROME"
+          sudo mkdir -p /opt/pw-browsers
+          sudo ln -sf "$CHROME" /opt/pw-browsers/chromium
+          /opt/pw-browsers/chromium --version
 
       - name: Static audit
         run: python tests/static_audit.py output/RechDocs_v3.4.1.html
