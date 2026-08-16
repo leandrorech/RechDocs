@@ -20,6 +20,16 @@ jobs:
         with:
           ref: fix/rechdocs-p0-clinical-rules-20260816
 
+      - name: Fix overly literal patch self-check
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/apply_p0_clinical_rules.py')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("    'status=\"solicitada\"|\"aguardando\"|\"realizada\"',\n", "    'Solicitação NÃO é parecer realizado',\n")
+          p.write_text(s, encoding='utf-8')
+          PY
+
       - name: Apply clinical rules
         run: python scripts/apply_p0_clinical_rules.py
 
@@ -52,6 +62,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add output/RechDocs_v3.4.1.html reports/P0_CLINICAL_RULES_2026-08-16.md
+          git add output/RechDocs_v3.4.1.html reports/P0_CLINICAL_RULES_2026-08-16.md scripts/apply_p0_clinical_rules.py
           git commit -m 'fix: enforce temporal exams infusion and interconsult rules'
           git push origin HEAD:fix/rechdocs-p0-clinical-rules-20260816
