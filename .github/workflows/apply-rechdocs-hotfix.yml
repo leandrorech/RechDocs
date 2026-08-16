@@ -20,7 +20,7 @@ jobs:
         with:
           ref: fix/rechdocs-p0-clinical-rules-20260816
 
-      - name: Prepare patch script
+      - name: Prepare patch self-check
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -30,72 +30,12 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Apply clinical rules
-        run: python scripts/apply_p0_clinical_rules.py
-
-      - name: Preserve units only when needed to disambiguate
+      - name: Apply P0 clinical rules
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('output/RechDocs_v3.4.1.html')
-          s=p.read_text(encoding='utf-8')
+          python scripts/apply_p0_clinical_rules.py
+          python scripts/apply_unit_conflict_safeguard.py
 
-          old="""function formatCompactExam(e){
-  const result=examResultForOutput(e);
-  return `${cleanStr(e.nome)}${result?`: ${result}`:''}`;
-}"""
-          new="""function unitConflictNames(exams){
-  const byName=new Map();
-  asArray(exams).forEach(e=>{
-    const name=keyName(e&&e.nome), unit=cleanStr(e&&e.unidade);
-    if(!name||!unit)return;
-    if(!byName.has(name))byName.set(name,new Set());
-    byName.get(name).add(keyName(unit));
-  });
-  return new Set([...byName.entries()].filter(([,units])=>units.size>1).map(([name])=>name));
-}
-function formatCompactExam(e,showUnit=false){
-  let result=examResultForOutput(e);
-  const unit=cleanStr(e&&e.unidade);
-  if(showUnit&&unit)result=result?`${result} ${unit}`:unit;
-  return `${cleanStr(e.nome)}${result?`: ${result}`:''}`;
-}"""
-          if old not in s: raise SystemExit('formatCompactExam patched block not found')
-          s=s.replace(old,new,1)
-
-          old="""  const exArr=sortAndDedupeExams(normalizeExamsForOutput(d.exames));
-  if(exArr.length){"""
-          new="""  const exArr=sortAndDedupeExams(normalizeExamsForOutput(d.exames));
-  const unitConflicts=unitConflictNames(exArr);
-  if(exArr.length){"""
-          if old not in s: raise SystemExit('buildExames unit marker not found')
-          s=s.replace(old,new,1)
-          old="""        const result=examResultForOutput(e); if(result)row+=`: ${result}`;
-        lines.push(row);"""
-          new="""        let result=examResultForOutput(e);
-        const unit=cleanStr(e.unidade);
-        if(unitConflicts.has(keyName(e.nome))&&unit)result=result?`${result} ${unit}`:unit;
-        if(result)row+=`: ${result}`;
-        lines.push(row);"""
-          if old not in s: raise SystemExit('buildExames result marker not found')
-          s=s.replace(old,new,1)
-
-          old="""  const exams=sortAndDedupeExams(normalizeExamsForOutput(d&&d.exames));
-  if(!exams.length)return buildExames(d);"""
-          new="""  const exams=sortAndDedupeExams(normalizeExamsForOutput(d&&d.exames));
-  const unitConflicts=unitConflictNames(exams);
-  if(!exams.length)return buildExames(d);"""
-          if old not in s: raise SystemExit('compact unit marker not found')
-          s=s.replace(old,new,1)
-          old="list.forEach(e=>lines.push(formatCompactExam(e)));"
-          new="list.forEach(e=>lines.push(formatCompactExam(e,unitConflicts.has(keyName(e.nome)))));"
-          if old not in s: raise SystemExit('compact formatter marker not found')
-          s=s.replace(old,new,1)
-
-          p.write_text(s,encoding='utf-8')
-          PY
-
-      - name: Install dependencies and Chromium
+      - name: Install browser test runtime
         run: |
           npm ci
           npx playwright install --with-deps chromium
@@ -112,9 +52,9 @@ function formatCompactExam(e,showUnit=false){
           python - <<'PY'
           from pathlib import Path
           import re
-          s=Path('output/RechDocs_v3.4.1.html').read_text(encoding='utf-8')
-          scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
-          Path('/tmp/rechdocs.js').write_text('\n'.join(scripts),encoding='utf-8')
+          s = Path('output/RechDocs_v3.4.1.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', s, re.I)
+          Path('/tmp/rechdocs.js').write_text('\n'.join(scripts), encoding='utf-8')
           PY
           node --check /tmp/rechdocs.js
 
@@ -124,86 +64,10 @@ function formatCompactExam(e,showUnit=false){
       - name: Existing characterization suite
         run: node tests/characterization/harness/run-characterization.mjs
 
-      - name: Assert candidate characterization
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          p=Path('tests/characterization/reports/characterization_run_result.json')
-          data=json.loads(p.read_text(encoding='utf-8'))
-          # A fixture report itself contains baseline/reference failures by design.
-          # Require candidate PASS for every supported candidate case.
-          bad=[]
-          for item in data.get('fixtures', data.get('results', [])):
-              cand=item.get('candidate',{}) if isinstance(item,dict) else {}
-              if cand.get('pass') is False:
-                  bad.append(item.get('id') or item.get('fixture') or 'unknown')
-          if bad:
-              raise SystemExit('candidate characterization failures: '+', '.join(bad))
-          print('candidate characterization assertions: PASS')
-          PY
+      - name: Assert current candidate characterization
+        run: python scripts/assert_candidate_characterization.py
 
-      - name: Create detached GitHub commit object
+      - name: Create tested detached commit
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          REPO="$GITHUB_REPOSITORY"
-          PARENT="$GITHUB_SHA"
-          BASE_TREE="$(git rev-parse HEAD^{tree})"
-
-          blob_for() {
-            local path="$1"
-            local payload
-            payload="$(base64 -w0 "$path")"
-            jq -n --arg content "$payload" '{content:$content,encoding:"base64"}' \
-              | curl -fsSL -X POST \
-                  -H "Authorization: Bearer $GH_TOKEN" \
-                  -H "Accept: application/vnd.github+json" \
-                  "https://api.github.com/repos/$REPO/git/blobs" \
-                  -d @- | jq -r .sha
-          }
-
-          OUT_BLOB="$(blob_for output/RechDocs_v3.4.1.html)"
-          REPORT_BLOB="$(blob_for reports/P0_CLINICAL_RULES_2026-08-16.md)"
-          SCRIPT_BLOB="$(blob_for scripts/apply_p0_clinical_rules.py)"
-
-          TREE_SHA="$(jq -n \
-            --arg base "$BASE_TREE" \
-            --arg out "$OUT_BLOB" \
-            --arg report "$REPORT_BLOB" \
-            --arg script "$SCRIPT_BLOB" \
-            '{base_tree:$base,tree:[
-              {path:"output/RechDocs_v3.4.1.html",mode:"100644",type:"blob",sha:$out},
-              {path:"reports/P0_CLINICAL_RULES_2026-08-16.md",mode:"100644",type:"blob",sha:$report},
-              {path:"scripts/apply_p0_clinical_rules.py",mode:"100644",type:"blob",sha:$script}
-            ]}' \
-            | curl -fsSL -X POST \
-                -H "Authorization: Bearer $GH_TOKEN" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/$REPO/git/trees" \
-                -d @- | jq -r .sha)"
-
-          COMMIT_SHA="$(jq -n \
-            --arg message 'fix: enforce temporal exams infusion and interconsult rules' \
-            --arg tree "$TREE_SHA" \
-            --arg parent "$PARENT" \
-            '{message:$message,tree:$tree,parents:[$parent]}' \
-            | curl -fsSL -X POST \
-                -H "Authorization: Bearer $GH_TOKEN" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/$REPO/git/commits" \
-                -d @- | jq -r .sha)"
-
-          echo "DETACHED_COMMIT_SHA=$COMMIT_SHA"
-          echo "$COMMIT_SHA" > /tmp/detached_commit_sha.txt
-
-      - name: Upload tested candidate metadata
-        uses: actions/upload-artifact@v4
-        with:
-          name: rechdocs-p0-tested-candidate
-          path: |
-            output/RechDocs_v3.4.1.html
-            reports/P0_CLINICAL_RULES_2026-08-16.md
-            tests/characterization/reports/characterization_run_result.json
-            /tmp/detached_commit_sha.txt
+          GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/create_detached_tested_commit.py
