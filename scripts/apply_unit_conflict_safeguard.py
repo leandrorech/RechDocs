@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 p = Path('output/RechDocs_v3.4.1.html')
 s = p.read_text(encoding='utf-8')
@@ -47,24 +48,26 @@ if old not in s:
     raise SystemExit('buildExames result marker not found')
 s = s.replace(old, new, 1)
 
-old = """  const exams=sortAndDedupeExams(normalizeExamsForOutput(d&&d.exames));
-  if(!exams.length)return buildExames(d);"""
-new = """  const exams=sortAndDedupeExams(normalizeExamsForOutput(d&&d.exames));
-  const unitConflicts=unitConflictNames(exams);
-  if(!exams.length)return buildExames(d);"""
-if old not in s:
-    raise SystemExit('compact unit marker not found')
-s = s.replace(old, new, 1)
+# buildExamesCompactos() has had small layout/indent changes across revisions.
+# Insert the conflict set immediately after the normalized exam list, independent of spacing.
+pattern = r'(?m)^(?P<indent>\s*)const exams=sortAndDedupeExams\(normalizeExamsForOutput\(d&&d\.exames\)\);\s*$'
+m = re.search(pattern, s)
+if not m:
+    raise SystemExit('compact normalized exam list marker not found')
+indent = m.group('indent')
+replacement = m.group(0) + '\n' + indent + 'const unitConflicts=unitConflictNames(exams);'
+s = s[:m.start()] + replacement + s[m.end():]
 
-old = "list.forEach(e=>lines.push(formatCompactExam(e)));"
-new = "list.forEach(e=>lines.push(formatCompactExam(e,unitConflicts.has(keyName(e.nome)))));"
+# Use units only when this analyte has more than one distinct source unit.
+old = 'list.forEach(e=>lines.push(formatCompactExam(e)));'
+new = 'list.forEach(e=>lines.push(formatCompactExam(e,unitConflicts.has(keyName(e.nome)))));'
 if old not in s:
     raise SystemExit('compact formatter marker not found')
 s = s.replace(old, new, 1)
 
 # Export helper for focused tests without changing product behavior.
-old = "window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG,isContinuousInfusion,normalizeExamsForOutput,compactHemogramResult,formatCompactExam,buildExames,buildExamesCompactos,buildInterconsultas,collectTemporalAnchoringWarnings,buildSystemPrompt};"
-new = "window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG,isContinuousInfusion,normalizeExamsForOutput,compactHemogramResult,unitConflictNames,formatCompactExam,buildExames,buildExamesCompactos,buildInterconsultas,collectTemporalAnchoringWarnings,buildSystemPrompt};"
+old = 'window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG,isContinuousInfusion,normalizeExamsForOutput,compactHemogramResult,formatCompactExam,buildExames,buildExamesCompactos,buildInterconsultas,collectTemporalAnchoringWarnings,buildSystemPrompt};'
+new = 'window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG,isContinuousInfusion,normalizeExamsForOutput,compactHemogramResult,unitConflictNames,formatCompactExam,buildExames,buildExamesCompactos,buildInterconsultas,collectTemporalAnchoringWarnings,buildSystemPrompt};'
 if old in s:
     s = s.replace(old, new, 1)
 
