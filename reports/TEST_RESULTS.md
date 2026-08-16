@@ -3,55 +3,116 @@
 > Registrar todo comando executado, resultado, falha e limitação, conforme regra 9 de `AGENTS.md`.
 > Não declarar sucesso quando houver teste não executado ou dependência indisponível (regra 10).
 
+**Última execução:** 2026-08-15 (RELEASE GATE — reexecutado após a revisão do contrato de cópia)
+**Branch:** `claude/github-app-install-aft7xw`
+**Candidata:** `output/RechDocs_v3.4.1.html` — 232.640 bytes, SHA-256 `0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d`
+**Baseline (congelada, não modificada):** SHA-256 `56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667`
+**Referência (não modificada):** SHA-256 `6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073`
+
 ## Auditoria estática
 
-| Arquivo alvo | Comando | Resultado | Observações |
-|---|---|---|---|
-| `baseline/rech_docs_v3_3_12_P1.html` | `python tests/static_audit.py baseline/rech_docs_v3_3_12_P1.html` | pendente de execução | ver `reports/BASELINE_STATIC_AUDIT.txt` para execução anterior |
-| `reference/RechDocs_v3.4.0_reference.html` | `python tests/static_audit.py reference/RechDocs_v3.4.0_reference.html` | pendente de execução | ver `reports/REFERENCE_STATIC_AUDIT.txt` para execução anterior |
-| `output/RechDocs_v3.4.1.html` | `python tests/static_audit.py output/RechDocs_v3.4.1.html` | **pendente de execução** | executar antes de declarar versão final |
+Comando: `python3 tests/static_audit.py <arquivo>`
 
-## Suítes de caracterização / clínicas
-
-| Suíte | Status | Observações |
-|---|---|---|
-| `baseline.characterization.cjs` (referenciada em `IMPLEMENTATION_PLAN.md`) | **não encontrada em `tests/`** | migrar ou recriar antes da validação final |
-| `baseline.clinical.cjs` (referenciada em `IMPLEMENTATION_PLAN.md`) | **não encontrada em `tests/`** | migrar ou recriar antes da validação final |
-| 37 testes históricos mencionados em `IMPLEMENTATION_PLAN.md` | **não localizados no repositório** | confirmar origem e migrar |
-
-## Riscos de regressão — status de validação
-
-| ID | Severidade | Descrição resumida | Status de teste |
-|---|---|---|---|
-| R-01 | Bloqueante | Edição contorna rastreabilidade e bloqueio de cópia | pendente |
-| R-02 | Bloqueante | Parâmetros ventilatórios antigos reaparecem após extubação/reintubação | pendente |
-| R-03 | Bloqueante | Plano futuro passa a ação executada (regex Unicode) | pendente |
-| R-04 | Alto | Insulina como sedação / antitrombótico removido indevidamente | pendente |
-| R-05 | Alto | Compactação perde significado temporal/unidade ou duplica exames | pendente |
-| R-06 | Alto | Regex de pré-evolução apaga seção errada | pendente |
-| R-07 | Alto | Alteração manual não aparece na trilha e não bloqueia saída | pendente |
-| R-08 | Alto | "Limpar sessão" preserva chave/segredo | pendente |
-| R-09 | Alto | P/F rotula SDRA isoladamente; limites K/Mg regridem | pendente |
-| R-10 | Alto | Unidades duplicadas ou convertidas sem base | pendente |
-| R-11 | Médio | Interconsulta sem data recebe marcador técnico no corpo | pendente |
-| R-12 | Médio | Cancelar pré-evolução não restaura estado anterior | pendente |
-| R-13 | Médio | Handlers/IDs órfãos após mescla manual | pendente |
-| R-14 | Médio | Conteúdo de IA interpretado como HTML (`innerHTML`) | pendente |
-| R-15 | Médio | Qwen recebe imagem em alias não multimodal | pendente |
-| R-16 | Médio | Cópia e impressão divergem do preview | pendente |
-
-## Funcionalidades recentes — status de validação
-
-| Item | Status de teste |
+| Arquivo alvo | Resultado |
 |---|---|
-| Preview editável restaurado | pendente |
-| Negrito estrutural de títulos | pendente |
-| Normalização de NUTRIÇÃO | pendente |
-| Remoção de blocos ANTITROMBÓTICOS | pendente |
-| Compactação de hemograma (Hb/Ht) | pendente |
+| `baseline/rech_docs_v3_3_12_P1.html` | PASSOU (60 IDs, 0 duplicados, 1 script inline, JS válido) |
+| `reference/RechDocs_v3.4.0_reference.html` | PASSOU (60 IDs, 0 duplicados, 1 script inline, JS válido) |
+| `output/RechDocs_v3.4.1.html` | PASSOU (**68 IDs**, 0 duplicados, 1 script inline, JS válido) |
 
-## Limitações conhecidas
+68 IDs = 65 originais + `#critical-banner`, `#critical-banner-list`, `#copy-warn`. O ID
+`#btn-copiar-mesmo-assim` foi **removido** junto com o contrato de override.
 
-- Ambiente de execução para testes `.cjs`/Node não confirmado neste registro.
-- Dependências de teste vendorizadas/aprovadas ainda não definidas (ver Etapa 1.4 de `reports/IMPLEMENTATION_PLAN.md`).
-- Decisões humanas pendentes listadas em `reports/REGRESSION_RISKS.md` bloqueiam a definição de critérios de aceite para alguns testes (ex.: deduplicação de exames, definição de "exportação").
+## Validação sintática de JavaScript
+
+`node --check` sobre cada `.mjs` do harness e sobre o JS inline extraído de cada HTML.
+
+| Alvo | Resultado |
+|---|---|
+| 9 arquivos `.mjs` em `tests/characterization/` | todos OK |
+| JS inline da candidata (1 script, 194.455 chars) | OK |
+| JS inline da baseline (1 script, 172.580 chars) | OK |
+| JS inline da referência (1 script, 155.758 chars) | OK |
+
+## Suíte de characterization
+
+Comando: `node tests/characterization/harness/run-characterization.mjs`
+Harness: Playwright + Chromium headless, `BrowserContext` isolado por (fixture × artefato), timezone `America/Sao_Paulo`, locale `pt-BR`. Nenhuma chamada de rede real: a fixture E2E intercepta o `fetch` ao provedor via `page.route()` e responde com payload sintético; qualquer host não previsto é abortado.
+Resultado bruto completo: `tests/characterization/reports/characterization_run_result.json`
+
+| Fixture | baseline | reference | candidata |
+|---|---|---|---|
+| P0-01 — vazamento de parâmetros ventilatórios entre episódios | FAIL | PASS | **PASS** |
+| P0-02a — empate simétrico intubado × extubado | PASS | PASS | **PASS** |
+| P0-02b — empate assimétrico "VM ativa" × extubado (R-17) | FAIL | FAIL | **PASS** |
+| P0-03 — alerta crítico visível, saída sempre liberada | N/A | N/A | **PASS** |
+| CI-05 — compactação cumulativa de exames | N/A | FAIL (contrato incompatível) | **PASS** (6/6) |
+| E2E-01 — fluxo real de UI ponta a ponta | N/A | N/A | **PASS** (12/12) |
+
+baseline e referência ficam `N/A` em P0-03/E2E-01 por não possuírem o mecanismo de alerta crítico
+desta versão — a baseline tinha bloqueio absoluto e a referência não tinha nem bloqueio nem
+sinalização; nenhuma das duas atende ao contrato vigente.
+
+### Detalhe P0-03 — política de saída (contrato vigente: sinalização máxima, sem bloqueio)
+
+| Critério | Resultado | Evidência observada |
+|---|---|---|
+| 1. Banner crítico visível com pendência | PASS | `class="critical-banner show"`, título *"⚠ Atenção — existem inconsistências/pendências críticas…"* |
+| 2. Lista concreta das pendências | PASS | `□ Pendencia critica sintetica A.` / `□ …B.` |
+| 3. "Copiar tudo" habilitado | PASS | `copyButtonDisabled=false` **com pendência ativa** |
+| 3b. Aviso junto aos botões | PASS | `#copy-warn` visível |
+| 4. Impressão/PDF funcional | PASS | sem exceção; `window.print()` chamado 1× |
+| 5. Edição não remove o alerta | PASS | após `input`: banner visível, alerta ativo, cópia funcional |
+| 6. Cópia com alerta, sem confirmação | PASS | 1 escrita, `confirm()` chamado **0×** |
+| 7. Audit log da saída com alerta | PASS | `⚠ Cópia realizada em 2026-08-15T23:39:52.287Z COM ALERTA CRÍTICO ATIVO — …` e linha equivalente para Impressão/PDF |
+| 8. Sem mecanismo de bloqueio a contornar | PASS | `legacySymbols=[]`, `noBlockingMechanism=true` |
+| Controle: sem pendência | PASS | banner ausente, aviso ausente, cópia funcional |
+
+### Detalhe E2E-01 — 12 cenários de fluxo real de UI
+
+Dados 100% sintéticos/desidentificados (`PACIENTE TESTE E2E`, leito fictício). Nenhuma chave real; nenhuma requisição sai da máquina.
+
+| Cenário | Resultado | Evidência observada |
+|---|---|---|
+| 1. Geração normal pela UI (`#btn-gen`) | PASS | `output-card` visível |
+| 2. Preview renderizado | PASS | conteúdo clínico no `output-body` |
+| 3. Geração sem pendência → sem alerta | PASS | alerta `false`, banner ausente, botão habilitado |
+| 4. Copiar sem pendência | PASS | 1 escrita |
+| 5. Pendência crítica → banner + lista + aviso, **sem bloqueio** | PASS | banner visível, botão `disabled=false` |
+| 6. Cópia com alerta ativo, sem confirmação | PASS | 1 escrita, `confirm()` 0× |
+| 7. Audit log registra a saída com alerta | PASS | linha com timestamp ISO + pendência; alerta permanece ativo após a cópia |
+| 8. Edição manual não remove o alerta (R-01/R-07) | PASS | após `input`: alerta `true`, banner `true`, aviso `true`, cópia funcional; idem no `prefill-editor` com pendência de reconciliação |
+| 9. Segunda cópia continua funcionando | PASS | 1 escrita, alerta ainda ativo |
+| 9b. Impressão/PDF com alerta | PASS | sem exceção, `print()` 1×, registrada no audit log |
+| 10. **Resolução real da pendência remove o alerta** | PASS | nova geração sem pendências: alerta `true → false`, banner `true → false`, aviso oculto, lista limpa, cópia segue funcional |
+| 11. Reiniciar sessão limpa estado/audit | PASS | output vazio, audit vazio, alerta `false`, banner ausente, `CRITICAL_OUTPUT_LOG.length=0` |
+
+Erros de página (exceção JS não tratada) durante todo o fluxo: **nenhum**. Erros de console: **nenhum**.
+
+## R-01 / R-07 — RESOLVIDO por decisão de contrato
+
+O bloqueador identificado na primeira passagem do gate (listener global de `input` chamando
+`setCopyBlocked(false)` a cada digitação) **deixou de existir como bypass**: por decisão do produto de
+2026-08-15, o RechDocs não bloqueia mais cópia nem impressão em nenhuma circunstância. Sem bloqueio,
+não há o que contornar.
+
+O requisito remanescente — **a edição manual não pode apagar a sinalização crítica** — foi
+implementado e verificado dinamicamente, junto com o seu complemento indispensável: **existe um
+caminho que apaga o alerta**, a resolução real da pendência. Sem esse par, o banner ficaria preso
+permanentemente e viraria ruído ignorável:
+
+| Cenário | Antes da edição | Depois de 1 evento `input` |
+|---|---|---|
+| Alerta ativo no preview | banner visível, `CRITICAL_ALERT_ACTIVE=true` | **banner visível, alerta `true`**, cópia funcional |
+| Pré-evolução com pendência de reconciliação | banner visível, alerta `true` | **banner visível, alerta `true`** |
+| **Resolução real** (nova geração sem pendências) | banner visível, alerta `true` | **banner oculto, alerta `false`** — E2E-01 cenário 10 |
+
+A fixture P0-03 também verifica que os símbolos do contrato antigo (`setCopyBlocked()`,
+`copiarComOverride()`, `COPY_BLOCKED`, `#btn-copiar-mesmo-assim`) não reapareceram: `legacySymbols=[]`,
+`noBlockingMechanism=true`.
+
+## Limitações conhecidas desta execução
+
+- Cobertura clínica ainda parcial: as fixtures cobrem P0-01, P0-02a/b, P0-03, CI-05 e o fluxo de UI. Os riscos **R-03, R-04, R-06, R-08 a R-16** de `REGRESSION_RISKS.md` continuam **sem teste dedicado**.
+- Nenhuma chamada real a provedor de IA foi feita; os adaptadores (`callAnthropic`/`callOpenAI`/`callGemini`/`callDeepSeek`/`callQwen`) **não foram testados contra APIs reais** — apenas o caminho de resposta bem-sucedida da Anthropic foi exercitado via stub.
+- Não executados: teste cross-browser (apenas Chromium), impressão física, conversão real de PDF, pentest dinâmico, validação institucional/LGPD.
+- As suítes `baseline.characterization.cjs` / `baseline.clinical.cjs` e os "37 testes históricos" citados em `IMPLEMENTATION_PLAN.md` continuam **inexistentes no repositório**; a suíte atual foi construída do zero e não é migração daquelas.
