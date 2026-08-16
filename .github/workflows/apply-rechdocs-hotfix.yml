@@ -21,6 +21,9 @@ jobs:
       - name: Build v3.4.2
         run: python scripts/build_v342.py
 
+      - name: Align synthetic E2E source with dose-literal contract
+        run: python scripts/patch_v342_tests.py
+
       - name: Static checks
         shell: bash
         run: |
@@ -43,7 +46,11 @@ jobs:
           echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$CHROME" >> "$GITHUB_ENV"
 
       - name: Full characterization
-        run: node tests/characterization/harness/run-characterization.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/characterization/harness/run-characterization.mjs
+          python scripts/check_characterization_candidate.py
 
       - name: v3.4.2 focused guard
         run: node tests/v342_guard.mjs
@@ -63,7 +70,7 @@ jobs:
             echo "- sha256: $SHA"
             echo "- bytes: $BYTES"
             echo '- static audit: PASS'
-            echo '- characterization: PASS command completed'
+            echo '- candidate characterization gate: PASS (all fixtures candidate.pass=true)'
             echo '- v3.4.2 focused guard: PASS'
             echo '- guard covers: white background, compact preview, MV de-duplication, model catalogs, Qwen vision, obsolete saved-model fallback, dose no-correction policy.'
           } > reports/V3_4_2_TEST_RESULTS.md
@@ -75,6 +82,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout origin/main -- .github/workflows/apply-rechdocs-hotfix.yml
-          git add output/RechDocs_v3.4.2.html AGENTS.md scripts/build_v342.py tests/characterization/harness/run-characterization.mjs tests/characterization/harness/browser-adapter.mjs tests/characterization/reports/characterization_run_result.json tests/v342_guard.mjs reports/V3_4_2_CHANGELOG.md reports/V3_4_2_TEST_RESULTS.md .github/workflows/apply-rechdocs-hotfix.yml
+          git add output/RechDocs_v3.4.2.html AGENTS.md scripts/build_v342.py scripts/patch_v342_tests.py scripts/check_characterization_candidate.py tests/characterization/harness/run-characterization.mjs tests/characterization/harness/browser-adapter.mjs tests/characterization/harness/capture-state.mjs tests/characterization/reports/characterization_run_result.json tests/v342_guard.mjs reports/V3_4_2_CHANGELOG.md reports/V3_4_2_TEST_RESULTS.md .github/workflows/apply-rechdocs-hotfix.yml
           git commit -m 'feat: RechDocs v3.4.2 — UI compacta, modelos atuais e trava de dose'
           git push origin HEAD:feat/rechdocs-v3.4.2
