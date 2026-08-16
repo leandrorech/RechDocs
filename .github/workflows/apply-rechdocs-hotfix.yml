@@ -1,8 +1,8 @@
-name: Apply RechDocs hotfix
+name: Build and validate RechDocs v3.4.2
 
 on:
   push:
-    branches: [main]
+    branches: [feat/rechdocs-v3.4.2]
     paths:
       - '.github/workflows/apply-rechdocs-hotfix.yml'
   workflow_dispatch:
@@ -11,160 +11,372 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  build-v342:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply requested RechDocs corrections
+        with:
+          fetch-depth: 0
+
+      - name: Build v3.4.2 from frozen v3.4.1
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
-          p = Path('output/RechDocs_v3.4.1.html')
-          s = p.read_text(encoding='utf-8')
-          original = s
+          src = Path('output/RechDocs_v3.4.1.html')
+          dst = Path('output/RechDocs_v3.4.2.html')
+          s = src.read_text(encoding='utf-8')
 
-          for block in (
-              "\nANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}\n",
-              "\nANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}\n",
-          ):
-              s = s.replace(block, '')
+          def must_replace(old, new, label, count=1):
+              global s
+              if old not in s:
+                  raise SystemExit(f'anchor not found: {label}')
+              s = s.replace(old, new, count)
 
-          anchor = 'function renderAdmissao(d){'
-          if 'function sanitizeRenderedClinicalText(text)' not in s:
-              helper = '''function sanitizeRenderedClinicalText(text){
-            let out=String(text||'');
-            out=out.replace(/^NUTRIÇÃO:\\s*([^\\n]+)$/gmi,(m,v)=>{
-              let x=String(v||'').replace(/\\\\_/g,'_').replace(/_/g,' ').replace(/\\s+/g,' ').trim();
-              const parts=x.split(/\\s+[—–-]\\s+/).map(z=>z.trim()).filter(Boolean);
-              if(parts.length>=2 && keyName(parts[0])===keyName(parts[1])) x=parts[0];
-              if(/^VIA ORAL\\s+[—–-]\\s+VIA ORAL$/i.test(x)) x='VIA ORAL';
-              return 'NUTRIÇÃO: '+(x||'---');
-            });
-            out=out.split('\\n').map(line=>{
-              if(!/HEMOGRAMA:/i.test(line)) return line;
-              let x=line;
-              [/HEMÁCIAS?\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig,/VCM\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig,/HCM\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig,/CHCM\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig,/RDW\\s*[:=]?\\s*[^;|]+[;|]?\\s*/ig].forEach(re=>x=x.replace(re,''));
-              return x.replace(/;\\s*;/g,'; ').replace(/\\|\\s*\\|/g,'|').replace(/\\s{2,}/g,' ').trim();
-            }).join('\\n');
-            return out;
-          }
+          def replace_between(start, end, replacement, label):
+              global s
+              i = s.find(start)
+              if i < 0:
+                  raise SystemExit(f'start anchor not found: {label}')
+              j = s.find(end, i + len(start))
+              if j < 0:
+                  raise SystemExit(f'end anchor not found: {label}')
+              s = s[:i] + replacement + s[j:]
 
-          function applyClinicalHeadingBold(root){
-            if(!root)return;
-            const standalone=['EVOLUÇÃO PERÍODO DIURNO','EVOLUÇÃO PERÍODO NOTURNO','UTI GERAL I','UTI GERAL II','UTI GERAL III','EXAME CLINICO','EXAME CLÍNICO','ADMISSÃO','DOCUMENTO COMPLEMENTAR'];
-            const labels=['NOME','ALERGIAS','SAPS III','PESO','HIPÓTESES DIAGNOSTICAS','HIPÓTESES DIAGNÓSTICAS','HISTÓRIA DA DOENÇA ATUAL','HPMA','HD','ADMISSÃO UTI','ANTECEDENTES PATOLÓGICOS E CIRÚRGICOS','MEDICAÇÕES DE USO CONTINUO','MEDICAÇÕES DE USO CONTÍNUO','PROFILAXIAS','GÁSTRICA','TEP/ TVP','TEP/TVP','OUTROS','ANTIMICROBIANOS EM USO','ANTIMICROBIANOS QUE FORAM UTILIZADOS','SEDAÇÃO/ ANALGESIA','SEDAÇÃO / ANALGESIA','BLOQUEADOR NEUROMUSCULAR','OUTRAS INFUSÕES CONTÍNUAS','DROGAS VASOATIVAS','DISPOSITIVOS INVASIVOS','EXAMES DE MAIOR IMPORTÂNCIA','INTERCONSULTAS','AC','FC','PA','AP','NEUROLÓGICO','VENTILATÓRIO','ABDOME','MEMBROS SUPERIORES/ INFERIORES','MEMBROS SUPERIORES / INFERIORES','ULCERAS DE PRESSÃO','ÚLCERAS DE PRESSÃO','OUTRAS INFORMAÇÕES RELEVANTES','CONTROLES E BALANCOS DAS ULTIMAS 24 HORAS','CONTROLES E BALANÇOS DAS ÚLTIMAS 24 HORAS','NUTRIÇÃO','INTERCORRÊNCIAS','DEMANDA FAMILIAR','JUSTIFICATIVA DE PERMANÊNCIA EM UTI','CONDUTAS','EVOLUÇÃO MÉDICA','COMORBIDADES','MEDICAMENTOS EM USO','EXAME FÍSICO ATUAL','PARÂMETROS HEMODINÂMICOS ATUAIS','EXAMES RELEVANTES','IMPRESSÃO CLÍNICA'];
-            const esc=x=>x.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&');
-            const labelRe=new RegExp('^\\\\s*('+labels.sort((a,b)=>b.length-a.length).map(esc).join('|')+')(:)','i');
-            const standaloneRe=new RegExp('^\\\\s*('+standalone.sort((a,b)=>b.length-a.length).map(esc).join('|')+')\\\\s*$','i');
-            const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];
-            while(walker.nextNode())nodes.push(walker.currentNode);
-            nodes.forEach(node=>{
-              const parts=(node.nodeValue||'').split(/(\\n)/);
-              if(!parts.some(x=>labelRe.test(x)||standaloneRe.test(x)))return;
-              const frag=document.createDocumentFragment();
-              parts.forEach(part=>{
-                if(part==='\\n'){frag.appendChild(document.createTextNode(part));return;}
-                let m=part.match(labelRe);
-                if(m){const idx=part.indexOf(m[1]);if(idx>0)frag.appendChild(document.createTextNode(part.slice(0,idx)));const b=document.createElement('strong');b.textContent=m[1]+m[2];frag.appendChild(b);frag.appendChild(document.createTextNode(part.slice(idx+m[1].length+m[2].length)));return;}
-                m=part.match(standaloneRe);
-                if(m){const b=document.createElement('strong');b.textContent=part;frag.appendChild(b);return;}
-                frag.appendChild(document.createTextNode(part));
-              });
-              node.replaceWith(frag);
-            });
-          }
+          # Version: keep v3.4.1 immutable and publish a new artifact.
+          s = s.replace('RECH Docs v3.4.1', 'RECH Docs v3.4.2')
+          s = s.replace('RECH Docs v3.4.1 ·', 'RECH Docs v3.4.2 ·')
 
-          function enableEditablePreview(){
-            const body=document.getElementById('output-body');
-            if(!body)return;
-            body.contentEditable='true';
-            body.spellcheck=true;
-            body.setAttribute('aria-label','Pré-visualização editável do documento');
-            body.title='Clique no texto para corrigir diretamente antes de copiar ou imprimir.';
-            body.style.outline='1px dashed rgba(0,217,245,.45)';
-            body.style.outlineOffset='-4px';
-          }
-          '''
-              if anchor not in s:
-                  raise SystemExit('renderAdmissao anchor not found')
-              s = s.replace(anchor, helper + '\n' + anchor, 1)
+          # UI requested by product: white background and more compact sizing.
+          must_replace(
+              '--bg:#080c10;--surface:#0e141c;--surface2:#131b25;',
+              '--bg:#ffffff;--surface:#ffffff;--surface2:#f5f8fa;',
+              'light theme bg vars')
+          must_replace(
+              '--border:#1a2535;--border2:#243348;',
+              '--border:#d8e2e8;--border2:#c7d4dc;',
+              'light theme borders')
+          must_replace(
+              '--text:#e8f4f8;--text2:#7ba8c4;--text3:#3d6480;',
+              '--text:#10212b;--text2:#405f6d;--text3:#6f8792;',
+              'light theme text')
+          must_replace(
+              '--success:#00f5a0;--success-dim:#003320;',
+              '--success:#00875a;--success-dim:#e9f8f1;',
+              'light theme success')
+          must_replace(
+              '--danger:#ff4757;--danger-dim:#3d1015;',
+              '--danger:#c6283d;--danger-dim:#fff0f2;',
+              'light theme danger')
+          must_replace(
+              '--warning:#ffa502;--warning-dim:#3d2800;',
+              '--warning:#a86400;--warning-dim:#fff6e5;',
+              'light theme warning')
+          s, n = re.subn(
+              r'body\{background:var\(--bg\);background-image:radial-gradient\(ellipse at 20% 0%,rgba\(0,245,160,0\.06\) 0%,transparent 60%\),radial-gradient\(ellipse at 80% 100%,rgba\(0,217,245,0\.05\) 0%,transparent 60%\);color:var\(--text\);font-family:var\(--font\);font-size:13px;min-height:100vh;padding:1\.5rem 1rem\}',
+              'body{background:#fff;color:var(--text);font-family:var(--font);font-size:12px;min-height:100vh;padding:1rem .75rem}',
+              s,
+              count=1)
+          if n != 1:
+              raise SystemExit('body theme anchor not replaced')
+          must_replace(
+              '.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.875rem 1.125rem;margin-bottom:1rem}',
+              '.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.65rem .9rem;margin-bottom:.75rem}',
+              'compact cards')
+          must_replace(
+              '.field-label{font-size:10px;color:var(--text2);',
+              '.field-label{font-size:9px;color:var(--text2);',
+              'compact field labels')
+          must_replace(
+              '.output-card{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-top:1.25rem;overflow:hidden}',
+              '.output-card{display:none;background:#fff;color:#111;border:1px solid var(--border);border-radius:var(--radius-lg);margin-top:1rem;overflow:hidden}',
+              'white output card')
+          must_replace(
+              '.output-header{display:flex;align-items:center;justify-content:space-between;padding:8px 13px;border-bottom:1px solid var(--border);background:linear-gradient(90deg,rgba(0,245,160,0.05),rgba(0,217,245,0.03))}',
+              '.output-header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border);background:#f5f8fa}',
+              'compact output header')
+          must_replace(
+              '.output-body{padding:.875rem 1.125rem;font-family:var(--font);font-size:8pt;line-height:1.7;white-space:pre-wrap;color:var(--text);max-height:600px;overflow-y:auto}',
+              '.output-body{padding:.65rem .85rem;font-family:var(--font);font-size:7.5pt;line-height:1.55;white-space:pre-wrap;color:#111;background:#fff;max-height:600px;overflow-y:auto}',
+              'compact white preview')
+          must_replace(
+              '.prefill-editor{min-height:420px;font-size:8pt;line-height:1.7;color:var(--text)}',
+              '.prefill-editor{min-height:380px;font-size:7.5pt;line-height:1.55;color:#111;background:#fff}',
+              'compact prefill editor')
+          must_replace(
+              '#output-body{max-height:none!important;overflow:visible!important;color:#000!important;font-size:9pt!important}',
+              '#output-body{max-height:none!important;overflow:visible!important;color:#000!important;background:#fff!important;font-size:8pt!important;line-height:1.5!important}',
+              'compact print output')
 
-          old = 'const rendered=renderers[MODE](renderData);'
-          new = 'const rendered=sanitizeRenderedClinicalText(renderers[MODE](renderData));'
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif new not in s:
-              raise SystemExit('rendered assignment not found')
+          # Fix visual duplication: AP already extracted as "MV+ ..." must not become "MV MV+ ...".
+          old_fap = "function fAP(ap){ if(!ap)return'---'; if(typeof ap==='string')return ap||'---'; const p=[]; if(ap.mv)p.push(`MV ${ap.mv}`); if(ap.ra)p.push(`RA: ${ap.ra}`); return p.join(' | ')||'---'; }"
+          new_fap = "function fAP(ap){ if(!ap)return'---'; if(typeof ap==='string')return ap||'---'; const p=[]; if(ap.mv){const mv=cleanStr(ap.mv);p.push(/^MV\\b/i.test(mv)?mv:`MV ${mv}`);} if(ap.ra)p.push(`RA: ${ap.ra}`); return p.join(' | ')||'---'; }"
+          must_replace(old_fap, new_fap, 'fAP MV idempotence')
 
-          old = "renderTraceableOutput(displayedRendered,traceResult.items);\n    renderTraceReview(traceResult.items);"
-          new = "renderTraceableOutput(displayedRendered,traceResult.items);\n    applyClinicalHeadingBold(document.getElementById('output-body'));\n    enableEditablePreview();\n    renderTraceReview(traceResult.items);"
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif 'enableEditablePreview();' not in s:
-              raise SystemExit('trace render anchor not found')
+          # Provider catalog verified against official docs on 2026-08-16.
+          openai_block = '''  openai:{
+    // Catálogo oficial OpenAI 16/08/2026: família GPT-5.6 completa.
+    keyPrefix:'sk-', placeholder:'sk-...', supportsVision:true,
+    models:[
+      {v:'gpt-5.6-luna',l:'gpt-5.6-luna (rápido/barato)'},
+      {v:'gpt-5.6-terra',l:'gpt-5.6-terra (equilíbrio)'},
+      {v:'gpt-5.6-sol',l:'gpt-5.6-sol (mais capaz)'}
+    ]
+  },
+'''
+          replace_between('  openai:{', '  gemini:{', openai_block, 'OpenAI provider block')
 
-          marker = "window.addEventListener('DOMContentLoaded',()=>{"
-          if 'Correção manual registrada — cópia e impressão liberadas' not in s:
-              listener = '''document.addEventListener('input',(ev)=>{
-            const el=ev.target;
-            if(el && (el.id==='output-body' || el.id==='prefill-editor')){
-              setCopyBlocked(false);
-              const state=document.getElementById('prefill-state');
-              if(state)state.textContent='Correção manual registrada — cópia e impressão liberadas. Pendências continuam visíveis para conferência.';
-              setStatus('success','Correção manual registrada — esta versão do preview será usada ao copiar/imprimir.');
-            }
-          });
-          '''
-              pos = s.find(marker)
-              if pos < 0:
-                  raise SystemExit('DOMContentLoaded anchor not found')
-              s = s[:pos] + listener + '\n' + s[pos:]
+          gemini_block = '''  gemini:{
+    // Catálogo oficial Google 16/08/2026: Flash estável atual + Pro preview atual.
+    keyPrefix:'', placeholder:'AIza...', supportsVision:true,
+    models:[
+      {v:'gemini-3.6-flash',l:'gemini-3.6-flash (rápido/estável)'},
+      {v:'gemini-3.1-pro-preview',l:'gemini-3.1-pro-preview (mais capaz · PREVIEW)'}
+    ]
+  },
+'''
+          replace_between('  gemini:{', '  deepseek:{', gemini_block, 'Gemini provider block')
 
-          s = s.replace(
-              'Pré-evolução gerada com pendências clínicas — edição não remove o bloqueio; corrija a fonte e gere novamente.',
-              'Pré-evolução gerada com pendências clínicas — revise e corrija diretamente no preview; após sua edição, copiar/imprimir serão liberados.'
-          )
+          deepseek_block = '''  deepseek:{
+    // Catálogo oficial DeepSeek 16/08/2026: V4 Flash e V4 Pro; aliases legados foram descontinuados.
+    keyPrefix:'sk-', placeholder:'sk-...', supportsVision:false,
+    models:[
+      {v:'deepseek-v4-flash',l:'deepseek-v4-flash (rápido/barato)'},
+      {v:'deepseek-v4-pro',l:'deepseek-v4-pro (raciocínio mais profundo)'}
+    ]
+  },
+'''
+          replace_between('  deepseek:{', '  qwen:{', deepseek_block, 'DeepSeek provider block')
 
-          s = s.replace(
-              "document.getElementById('output-title').textContent=prefillActive?'PRÉ-EVOLUÇÃO EDITÁVEL — REVISÃO OBRIGATÓRIA':titles[MODE];",
-              "document.getElementById('output-title').textContent=prefillActive?'PRÉ-EVOLUÇÃO EDITÁVEL — REVISÃO OBRIGATÓRIA':titles[MODE]+' — PREVIEW EDITÁVEL';"
-          )
+          qwen_block = '''  qwen:{
+    // Catálogo oficial Alibaba Model Studio 16/08/2026. Ambos aceitam texto+imagem no endpoint
+    // Anthropic-compatible; o domínio global de Singapore permanece funcional.
+    keyPrefix:'sk-', placeholder:'sk-...', supportsVision:true,
+    models:[
+      {v:'qwen3.6-flash',l:'qwen3.6-flash (rápido/barato + visão)'},
+      {v:'qwen3.7-plus',l:'qwen3.7-plus (mais capaz + visão)'}
+    ]
+  }
+'''
+          replace_between('  qwen:{', '\n};\nfunction setProvider', qwen_block, 'Qwen provider block')
 
-          if 'ANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}' in s:
-              raise SystemExit('active antithrombotic output remains')
-          if 'ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}' in s:
-              raise SystemExit('prior antithrombotic output remains')
-          for required in ('sanitizeRenderedClinicalText','applyClinicalHeadingBold','enableEditablePreview','Correção manual registrada — cópia e impressão liberadas'):
-              if required not in s:
-                  raise SystemExit('missing '+required)
-          if s == original:
-              raise SystemExit('no changes made')
-          p.write_text(s, encoding='utf-8')
+          # Saved model from an older catalog must never blank the select after a catalog update.
+          must_replace(
+              "const savedModel=safeLocalStorage.getItem('model_'+p); if(savedModel) sel.value=savedModel;",
+              "const savedModel=safeLocalStorage.getItem('model_'+p); if(savedModel&&cfg.models.some(m=>m.v===savedModel)) sel.value=savedModel; else sel.selectedIndex=0;",
+              'saved model fallback')
+
+          # Qwen current multimodal models are valid with the existing Anthropic-compatible payload.
+          s = s.replace('const resp=await fetch(\'https://dashscope-intl.aliyuncs.com/apps/anthropic/v1/messages\',{',
+                        'const resp=await fetch(\'https://dashscope-intl.aliyuncs.com/apps/anthropic/v1/messages\',{', 1)
+          s = s.replace('body:JSON.stringify({model,max_tokens:16000,system:systemPrompt,messages:[{role:\'user\',content:contentParts}]})',
+                        'body:JSON.stringify({model,max_tokens:32000,system:systemPrompt,messages:[{role:\'user\',content:contentParts}]})', 1)
+
+          # Product safety contract: RechDocs transcribes doses; it never therapeutically corrects them.
+          dose_rule = '''3c. DOSES E PARÂMETROS TERAPÊUTICOS — REGRA ABSOLUTA: transcreva EXATAMENTE o valor presente na fonte. NUNCA calcule, corrija, ajuste, substitua ou "normalize clinicamente" uma dose/parâmetro com base em função renal/hepática, peso, idade, diagnóstico, interação, guideline, faixa terapêutica habitual ou conhecimento médico. Se houver dois valores diferentes, extraia AMBOS como eventos independentes com sua procedência. Se um valor parecer incorreto, incomum ou perigoso, PRESERVE o valor original; não o corrija silenciosamente. O RechDocs documenta e sinaliza — não prescreve.\n'''
+          anchor4 = '4. Dados de "DADOS ATUAIS / PARÂMETROS / EXAMES"'
+          if dose_rule.strip() not in s:
+              if anchor4 not in s:
+                  raise SystemExit('prompt rule 4 anchor not found')
+              s = s.replace(anchor4, dose_rule + anchor4, 1)
+
+          passage_old = 'PROIBIDO inferir conduta, diagnóstico ou número (dose, parâmetro, débito) que não esteja explícito no texto-fonte, mesmo que pareça óbvio clinicamente.'
+          passage_new = 'PROIBIDO inferir, calcular, corrigir ou ajustar conduta, diagnóstico ou número (dose, parâmetro, débito) que não esteja explícito no texto-fonte, mesmo que pareça óbvio clinicamente. Doses e parâmetros devem ser transcritos exatamente como aparecem; nunca faça ajuste terapêutico.'
+          must_replace(passage_old, passage_new, 'passagem dose safety')
+
+          # Deterministic guard for text-only sources: a dose emitted by the extractor must be literal.
+          dose_validator = r'''function normalizeDoseLiteralText(x){return cleanStr(x).toLocaleLowerCase('pt-BR').replace(/\s+/g,' ');}
+function validateDoseLiteralness(d,sourceText,comparable=true){
+  if(!comparable)return ['ℹ Há anexos de imagem/PDF; a conferência literal determinística de doses fica limitada e depende também da rastreabilidade declarada pela IA.'];
+  const src=normalizeDoseLiteralText(sourceText);
+  const groups=[
+    ['ATB',asArray(d&&d.atb),x=>x.nome],
+    ['DVA',asArray(d&&d.dva),x=>x.droga],
+    ['SEDAÇÃO',asArray(d&&d.sedacao),x=>x.droga],
+    ['BNM',asArray(d&&d.bnm),x=>x.droga],
+    ['OUTRA INFUSÃO',asArray(d&&d.outras_infusoes),x=>x.droga],
+    ['ANTITROMBÓTICO',asArray(d&&d.antitromboticos),x=>x.nome||x.droga]
+  ];
+  const warnings=[];
+  groups.forEach(([grupo,arr,nameFn])=>arr.forEach(item=>{
+    const dose=cleanStr(item&&item.dose);
+    if(!dose)return;
+    const nd=normalizeDoseLiteralText(dose);
+    if(nd&&!src.includes(nd)){
+      warnings.push(`⛔ ${grupo} ${cleanStr(nameFn(item))||'(sem nome)'}: dose "${dose}" NÃO aparece literalmente nos textos enviados. O valor foi preservado, mas pode ter sido reformulado/corrigido pela IA — confira a fonte; RechDocs não deve ajustar doses.`);
+    }
+  }));
+  return [...new Set(warnings)];
+}
+'''
+          critical_anchor = 'function buildCriticalPendencies(d,warns){'
+          if 'function validateDoseLiteralness(' not in s:
+              if critical_anchor not in s:
+                  raise SystemExit('critical pendencies anchor not found')
+              s = s.replace(critical_anchor, dose_validator + '\n' + critical_anchor, 1)
+
+          source_anchor = "const sourceCorpus=[prev,updates,current,manualSource].filter(Boolean).join('\\n');"
+          dose_call = "const doseLiteralWarnings=validateDoseLiteralness(finalData,sourceCorpus,items.length===0);"
+          if dose_call not in s:
+              must_replace(source_anchor, source_anchor + '\n    ' + dose_call, 'dose validator call')
+
+          warns_old = 'const warns=[...normalized.warnings, ...engine.conflitos, ...futurePlanWarnings(updates), ...runValidations(finalData, engine.warnings), ...traceResult.warnings, ...undeclaredTraceWarnings];'
+          warns_new = 'const warns=[...normalized.warnings, ...engine.conflitos, ...futurePlanWarnings(updates), ...runValidations(finalData, engine.warnings), ...traceResult.warnings, ...undeclaredTraceWarnings, ...doseLiteralWarnings];'
+          must_replace(warns_old, warns_new, 'dose warnings integration')
+
+          # Durable governance note for future agents.
+          agents = Path('AGENTS.md')
+          if agents.exists():
+              a = agents.read_text(encoding='utf-8')
+              marker = '## Regra canônica de doses — RechDocs'
+              if marker not in a:
+                  a += '''\n\n## Regra canônica de doses — RechDocs\n\n- RechDocs **não ajusta dose terapeuticamente**. Dose/parâmetro deve ser transcrito da fonte, não recalculado por função renal/hepática, peso, idade, guideline ou julgamento do modelo.\n- Se a dose parecer errada/incomum, preservar o valor de origem e **sinalizar**; não corrigir silenciosamente.\n- Se houver valores conflitantes, manter eventos/proveniência e sinalizar conflito.\n- Política de saída permanece **WARN, NOT BLOCK**: alertas fortes não impedem copiar/imprimir.\n'''
+                  agents.write_text(a, encoding='utf-8')
+
+          # Update characterization candidate path to the new immutable artifact.
+          harness = Path('tests/characterization/harness/run-characterization.mjs')
+          h = harness.read_text(encoding='utf-8')
+          h = h.replace("Candidata atual (output/RechDocs_v3.4.1.html)', path: 'output/RechDocs_v3.4.1.html'",
+                        "Candidata atual (output/RechDocs_v3.4.2.html)', path: 'output/RechDocs_v3.4.2.html'")
+          harness.write_text(h, encoding='utf-8')
+
+          # Make browser path configurable for CI while keeping the existing local default.
+          adapter = Path('tests/characterization/harness/browser-adapter.mjs')
+          b = adapter.read_text(encoding='utf-8')
+          b = b.replace("const CHROMIUM_PATH = '/opt/pw-browsers/chromium';",
+                        "const CHROMIUM_PATH = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || '/opt/pw-browsers/chromium';")
+          adapter.write_text(b, encoding='utf-8')
+
+          guard = Path('tests/v342_guard.mjs')
+          guard.write_text(r'''import assert from 'node:assert/strict';
+import { openIsolatedArtifact, closeBrowser } from './characterization/harness/browser-adapter.mjs';
+
+const session = await openIsolatedArtifact('output/RechDocs_v3.4.2.html');
+try {
+  const observed = await session.page.evaluate(() => {
+    safeLocalStorage.setItem('model_openai','gpt-4o');
+    setProvider('openai');
+    const fallbackModel=document.getElementById('model').value;
+    const out=document.getElementById('output-body');
+    return {
+      title: document.title,
+      bodyBg: getComputedStyle(document.body).backgroundColor,
+      outputBg: getComputedStyle(out).backgroundColor,
+      outputColor: getComputedStyle(out).color,
+      outputFontPx: parseFloat(getComputedStyle(out).fontSize),
+      fap: fAP({mv:'MV+ BILATERAL',ra:''}),
+      openai: PROVIDER_CFG.openai.models.map(x=>x.v),
+      gemini: PROVIDER_CFG.gemini.models.map(x=>x.v),
+      deepseek: PROVIDER_CFG.deepseek.models.map(x=>x.v),
+      qwen: PROVIDER_CFG.qwen.models.map(x=>x.v),
+      qwenVision: PROVIDER_CFG.qwen.supportsVision,
+      fallbackModel,
+      dosePrompt: buildSystemPrompt('evolucao',{}).includes('NUNCA calcule, corrija, ajuste, substitua'),
+      doseExact: validateDoseLiteralness({dva:[{droga:'Noradrenalina',dose:'3 mcg/min'}]},'Noradrenalina 3 mcg/min',true),
+      doseChanged: validateDoseLiteralness({dva:[{droga:'Noradrenalina',dose:'3 mcg/min'}]},'Noradrenalina 2 mcg/min',true),
+    };
+  });
+  assert.match(observed.title,/3\.4\.2/);
+  assert.equal(observed.bodyBg,'rgb(255, 255, 255)');
+  assert.equal(observed.outputBg,'rgb(255, 255, 255)');
+  assert.ok(observed.outputFontPx <= 10.1, `preview font too large: ${observed.outputFontPx}px`);
+  assert.equal(observed.fap,'MV+ BILATERAL');
+  assert.deepEqual(observed.openai,['gpt-5.6-luna','gpt-5.6-terra','gpt-5.6-sol']);
+  assert.deepEqual(observed.gemini,['gemini-3.6-flash','gemini-3.1-pro-preview']);
+  assert.deepEqual(observed.deepseek,['deepseek-v4-flash','deepseek-v4-pro']);
+  assert.deepEqual(observed.qwen,['qwen3.6-flash','qwen3.7-plus']);
+  assert.equal(observed.qwenVision,true);
+  assert.equal(observed.fallbackModel,'gpt-5.6-luna');
+  assert.equal(observed.dosePrompt,true);
+  assert.equal(observed.doseExact.length,0);
+  assert.equal(observed.doseChanged.length,1);
+  assert.match(observed.doseChanged[0],/NÃO aparece literalmente/);
+  assert.deepEqual(session.consoleErrors,[]);
+  assert.deepEqual(session.pageErrors,[]);
+  console.log('v3.4.2 guard PASS', JSON.stringify(observed,null,2));
+} finally {
+  await session.close();
+  await closeBrowser();
+}
+''', encoding='utf-8')
+
+          notes = Path('reports/V3_4_2_CHANGELOG.md')
+          notes.write_text('''# RechDocs v3.4.2 — escopo fechado\n\nData: 2026-08-16\n\n## Mudanças\n\n- UI/preview com fundo branco e densidade mais compacta; preview 7.5 pt e impressão 8 pt.\n- Corrigido `AP: MV MV+ ...`: `fAP()` agora é idempotente para valores que já começam por `MV`.\n- OpenAI: `gpt-5.6-luna`, `gpt-5.6-terra`, `gpt-5.6-sol`.\n- Gemini: `gemini-3.6-flash` e `gemini-3.1-pro-preview`.\n- DeepSeek: `deepseek-v4-flash` e `deepseek-v4-pro`.\n- Qwen: `qwen3.6-flash` e `qwen3.7-plus`, ambos com visão habilitada no endpoint Anthropic-compatible.\n- Modelo salvo obsoleto não deixa mais o seletor vazio; cai para a primeira opção válida.\n- Regra clínica canônica: RechDocs não corrige/ajusta doses; transcreve exatamente a fonte e sinaliza discrepâncias.\n- Validador determinístico de literalidade de dose em entradas apenas-texto; com imagem/PDF, limita-se a sinalizar que a conferência literal automática não é possível.\n- Política de saída preservada: WARN, NOT BLOCK.\n\n## Fontes oficiais consultadas para catálogo de modelos\n\n- OpenAI API — Models / GPT-5.6 family (16/08/2026).\n- Google Gemini API — supported models / deprecations (16/08/2026).\n- DeepSeek API — Change Log V4 (16/08/2026).\n- Alibaba Cloud Model Studio — Anthropic-compatible Messages / Visual understanding / Base URL (16/08/2026).\n''', encoding='utf-8')
+
+          # Final assertions before writing artifact.
+          required = [
+              'gpt-5.6-terra', 'gemini-3.6-flash', 'deepseek-v4-pro', 'qwen3.7-plus',
+              'supportsVision:true', 'function validateDoseLiteralness', 'RECH Docs v3.4.2'
+          ]
+          for token in required:
+              if token not in s:
+                  raise SystemExit('missing required token: '+token)
+          if 'MV ${ap.mv}' in s:
+              raise SystemExit('old MV duplication renderer remains')
+
+          dst.write_text(s, encoding='utf-8')
           PY
 
-      - name: Static regression checks
+      - name: Static checks
         shell: bash
         run: |
           set -euo pipefail
-          FILE=output/RechDocs_v3.4.1.html
-          grep -q 'function sanitizeRenderedClinicalText' "$FILE"
-          grep -q 'function applyClinicalHeadingBold' "$FILE"
-          grep -q 'function enableEditablePreview' "$FILE"
-          grep -q 'PREVIEW EDITÁVEL' "$FILE"
-          grep -q 'Correção manual registrada — cópia e impressão liberadas' "$FILE"
-          ! grep -Fq 'ANTITROMBÓTICOS EM USO:\n${fAntitromboticosEmUso(d.antitromboticos)}' "$FILE"
-          ! grep -Fq 'ANTITROMBÓTICOS PRÉVIOS/SUSPENSOS:\n${fATBUtilizados(d.antitromboticos)}' "$FILE"
+          python3 tests/static_audit.py output/RechDocs_v3.4.2.html
+          grep -q 'gpt-5.6-terra' output/RechDocs_v3.4.2.html
+          grep -q 'gemini-3.6-flash' output/RechDocs_v3.4.2.html
+          grep -q 'deepseek-v4-pro' output/RechDocs_v3.4.2.html
+          grep -q 'qwen3.7-plus' output/RechDocs_v3.4.2.html
+          grep -q 'function validateDoseLiteralness' output/RechDocs_v3.4.2.html
+          ! grep -Fq 'if(ap.mv)p.push(`MV ${ap.mv}`)' output/RechDocs_v3.4.2.html
 
-      - name: Commit patched output to PR branch
+      - name: Install browser test runtime
         shell: bash
         run: |
           set -euo pipefail
-          BRANCH='hotfix/rechdocs-preview-20260810'
+          npm ci
+          npx playwright install --with-deps chromium
+          CHROME=$(node --input-type=module -e "import { chromium } from 'playwright'; console.log(chromium.executablePath())")
+          echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$CHROME" >> "$GITHUB_ENV"
+
+      - name: Full characterization + v3.4.2 guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/characterization/harness/run-characterization.mjs | tee /tmp/characterization.log
+          node tests/v342_guard.mjs | tee /tmp/v342_guard.log
+          grep -q 'v3.4.2 guard PASS' /tmp/v342_guard.log
+
+      - name: Write release test evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA=$(sha256sum output/RechDocs_v3.4.2.html | awk '{print $1}')
+          BYTES=$(wc -c < output/RechDocs_v3.4.2.html | tr -d ' ')
+          cat > reports/V3_4_2_TEST_RESULTS.md <<EOF
+          # RechDocs v3.4.2 — test results
+
+          Data: 2026-08-16
+
+          - artifact: \`output/RechDocs_v3.4.2.html\`
+          - sha256: \`$SHA\`
+          - bytes: \`$BYTES\`
+          - static audit: PASS
+          - characterization: executada contra baseline/reference/candidate; resultado bruto em \`tests/characterization/reports/characterization_run_result.json\`
+          - v3.4.2 guard: PASS
+          - console/page errors no guard: 0
+
+          Guard cobre: fundo branco, tamanho compacto do preview, MV sem duplicação, GPT-5.6 Terra, catálogos Gemini/DeepSeek/Qwen, visão Qwen, fallback de modelo salvo obsoleto e política de dose sem correção terapêutica.
+          EOF
+
+      - name: Commit candidate and restore workflow definition
+        shell: bash
+        run: |
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git checkout -B "$BRANCH"
-          git add output/RechDocs_v3.4.1.html
-          git commit -m 'fix: restore editable preview and requested RechDocs output rules'
-          git push -u origin "$BRANCH" --force
+          git checkout origin/main -- .github/workflows/apply-rechdocs-hotfix.yml
+          git add output/RechDocs_v3.4.2.html AGENTS.md tests/characterization/harness/run-characterization.mjs tests/characterization/harness/browser-adapter.mjs tests/characterization/reports/characterization_run_result.json tests/v342_guard.mjs reports/V3_4_2_CHANGELOG.md reports/V3_4_2_TEST_RESULTS.md .github/workflows/apply-rechdocs-hotfix.yml
+          git commit -m 'feat: RechDocs v3.4.2 — UI compacta, modelos atuais e trava de dose'
+          git push origin HEAD:feat/rechdocs-v3.4.2
