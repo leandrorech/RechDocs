@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-16T04:39:00.484Z",
+  "generatedAt": "2026-08-16T18:57:43.024Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -17,10 +17,10 @@
     },
     "candidate": {
       "key": "candidate",
-      "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
-      "path": "output/RechDocs_v3.4.1.html",
-      "sha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d",
-      "bytes": 232640
+      "label": "Candidata atual (output/RechDocs_v3.4.2.html)",
+      "path": "output/RechDocs_v3.4.2.html",
+      "sha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1",
+      "bytes": 233636
     }
   },
   "results": {
@@ -78,7 +78,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
       }
     },
     "P0-02": {
@@ -220,7 +220,7 @@
             "consoleErrors": []
           }
         },
-        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
       }
     },
     "P0-03": {
@@ -261,7 +261,7 @@
             "copyConfirms": 0,
             "printThrew": null,
             "printCalls": 1,
-            "auditText": "⚠ Cópia realizada em 2026-08-16T04:38:58.945Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B.\n⚠ Impressão/PDF realizada em 2026-08-16T04:38:58.946Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B."
+            "auditText": "⚠ Cópia realizada em 2026-08-16T18:57:41.605Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B.\n⚠ Impressão/PDF realizada em 2026-08-16T18:57:41.606Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B."
           },
           "afterEdit": {
             "bannerStillVisible": true,
@@ -279,7 +279,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
       }
     },
     "CI-05": {
@@ -316,7 +316,7 @@
           "unchanged": true,
           "sameReference": true
         },
-        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
       }
     },
     "E2E-01": {
@@ -382,7 +382,7 @@
             "beforeC": 0,
             "writes": 1,
             "confirms": 0,
-            "auditText": "⚠ Cópia realizada em 2026-08-16T04:39:00.303Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica de teste E2E.",
+            "auditText": "⚠ Cópia realizada em 2026-08-16T18:57:42.887Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica de teste E2E.",
             "auditCardVisible": true,
             "alertStillActive": true
           },
@@ -419,7 +419,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
       }
     }
   },

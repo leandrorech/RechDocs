@@ -195,6 +195,7 @@ const E2E_SOURCE_TEXT = {
   prev: 'Documento sintetico de teste E2E — sem dado real de paciente. '
     + 'Quadro sintetico para teste automatizado de interface. '
     + 'Pneumonia comunitaria em tratamento. '
+    + 'Ceftriaxona 2g 24/24h. '
     + 'Nega alergias medicamentosas conhecidas.',
   updates: 'Manter antibiotico conforme prescricao.',
   current: 'PA 120x70, FC 82, SpO2 96%.',

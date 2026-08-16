@@ -52,3 +52,11 @@ O objetivo é produzir `output/RechDocs_v3.4.1.html` por consolidação seletiva
 - Pré-evolução funciona sem enfraquecer bloqueios clínicos.
 - Limpeza de sessão remove dados clínicos e segredo local associado.
 - Relatórios exigidos estão completos.
+
+
+## Regra canônica de doses — RechDocs
+
+- RechDocs **não ajusta dose terapeuticamente**. Dose/parâmetro deve ser transcrito da fonte, não recalculado por função renal/hepática, peso, idade, guideline ou julgamento do modelo.
+- Se a dose parecer errada/incomum, preservar o valor de origem e **sinalizar**; não corrigir silenciosamente.
+- Se houver valores conflitantes, manter eventos/proveniência e sinalizar conflito.
+- Política de saída permanece **WARN, NOT BLOCK**: alertas fortes não impedem copiar/imprimir.

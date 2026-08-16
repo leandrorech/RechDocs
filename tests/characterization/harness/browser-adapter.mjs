@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 
-const CHROMIUM_PATH = '/opt/pw-browsers/chromium';
+const CHROMIUM_PATH = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || '/opt/pw-browsers/chromium';
 const FIXED_TIMEZONE_ID = 'America/Sao_Paulo';
 const FIXED_LOCALE = 'pt-BR';
 
