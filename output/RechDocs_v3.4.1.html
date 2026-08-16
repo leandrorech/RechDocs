@@ -1658,7 +1658,7 @@ class ClinicalState{
     const withScore=arr.map(e=>({...e,_score:parseDateTimeScore(e.data,e.hora)}));
     withScore.sort((a,b)=>(a._score||0)-(b._score||0));
     for(const e of withScore){
-      const dedupeKey=keyName(e.nome)+'|'+cleanStr(e.data)+'|'+keyName(e.resultado||'');
+      const dedupeKey=JSON.stringify([keyName(e.nome),cleanStr(e.resultado),keyName(e.unidade||''),cleanStr(e.data),cleanStr(e.hora)]);
       if(seen.has(dedupeKey))continue;
       seen.add(dedupeKey);
       const {_score,...clean}=e;
@@ -1678,7 +1678,7 @@ class ClinicalState{
     const withScore=arr.map(i=>({...i,_score:parseDateTimeScore(i.data,i.hora)}));
     withScore.sort((a,b)=>(a._score||0)-(b._score||0));
     for(const i of withScore){
-      const dedupeKey=keyName(i.especialidade)+'|'+cleanStr(i.data)+'|'+keyName(i.status||'');
+      const dedupeKey=JSON.stringify([keyName(i.especialidade),cleanStr(i.data),cleanStr(i.hora),keyName(i.status||''),keyName(i.motivo||''),keyName(i.parecer||'')]);
       if(seen.has(dedupeKey))continue;
       seen.add(dedupeKey);
       const {_score,...clean}=i;
@@ -1925,7 +1925,7 @@ function hasActiveDrug(list,patterns,field){
 function collectTemporalAnchoringWarnings(d){
   const vals=[d&&d.hda,d&&d.admissao_uti,d&&d.evolucao_medica,d&&d.intercorrencias,d&&d.impressao_clinica,...asArray(d&&d.condutas)];
   asArray(d&&d.interconsultas).forEach(i=>{vals.push(i&&i.motivo,i&&i.parecer);});
-  const rel=/\b(?:hoje|ontem|amanh[aã]|h[aá]\s+(?:cerca\s+de\s+|aproximadamente\s+)?\d+\s+(?:dia|dias|semana|semanas|m[eê]s|meses|hora|horas))\b/i;
+  const rel=/\b(?:hoje|ontem|amanh[aã]|semana\s+passada|m[eê]s\s+passado|ano\s+passado|h[aá]\s+(?:cerca\s+de\s+|aproximadamente\s+)?(?:\d+|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|quinze|vinte|trinta)\s+(?:dia|dias|semana|semanas|m[eê]s|meses|hora|horas)|(?:\d+|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|quinze|vinte|trinta)\s+(?:dia|dias|semana|semanas|m[eê]s|meses|hora|horas)\s+atr[aá]s)\b/i;
   const date=/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b/;
   const explicitUnknown=/documento\s+sem\s+data(?:\s+registrada)?/i;
   const warns=[];
@@ -2146,6 +2146,10 @@ function fSedacao(sed){
 function isContinuousInfusion(o){
   if(!o||!cleanStr(o.droga))return false;
   const raw=[o.droga,o.dose,o.unidade,o.regime,o.detalhe].map(cleanStr).filter(Boolean).join(' ');
+  const explicitIntermittent=/\bintermitente\b/i.test(raw)
+    || /\bn[aã]o\s+(?:[eé]\s+)?(?:uma\s+)?(?:infus[aã]o\s+)?cont[ií]nu[oa]\b/i.test(raw)
+    || /\bn[aã]o\s+(?:manter\s+)?continuamente\b/i.test(raw);
+  if(explicitIntermittent)return false;
   // BIC/bomba isoladamente NÃO define continuidade. Esquema de horário ou duração finita é intermitente.
   const intermittent=/\b(?:1x\s*\/?\s*dia|24\s*\/\s*24|12\s*\/\s*12|8\s*\/\s*8|6\s*\/\s*6|4\s*\/\s*4|2\s*\/\s*2)\s*h?\b/i.test(raw)
     || /\b(?:correr|infundir|administrar)\s+(?:em|por)\s+\d+(?:[.,]\d+)?\s*(?:h|hora|horas|min|minuto|minutos)\b/i.test(raw);
@@ -2328,7 +2332,7 @@ function buildExamesCompactos(d){
     const byType={};
     group.forEach(e=>{const t=labels[e.tipo]?e.tipo:'outro';(byType[t]||(byType[t]=[])).push(e);});
     return order.filter(t=>byType[t]?.length)
-      .map(t=>`${labels[t]} [${date}]: ${byType[t].map(formatCompactExam).join(' | ')}`);
+      .map(t=>`${labels[t]} [${date}]: ${byType[t].map(e=>formatCompactExam(e)).join(' | ')}`);
   };
   const lines=[];
   dated.forEach((group,date)=>lines.push(...renderGroup(date,group)));
