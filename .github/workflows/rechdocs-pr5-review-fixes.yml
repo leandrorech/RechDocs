@@ -1,0 +1,115 @@
+name: RechDocs PR5 review fixes
+
+on:
+  push:
+    branches:
+      - fix/rechdocs-p0-review-fixes-work
+    paths:
+      - '.github/workflows/rechdocs-pr5-review-fixes.yml'
+      - 'scripts/apply_pr5_review_fixes.py'
+      - 'tests/p0-clinical-rules.mjs'
+      - 'reports/P0_CLINICAL_RULES_2026-08-16.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  review-fix-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout work branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/rechdocs-p0-review-fixes-work
+
+      - name: Apply review fixes
+        run: python scripts/apply_pr5_review_fixes.py
+
+      - name: Install browser runtime
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          CHROME="$(find "$HOME/.cache/ms-playwright" -type f -path '*/chrome-linux*/chrome' | head -n 1)"
+          test -n "$CHROME"
+          sudo mkdir -p /opt/pw-browsers
+          sudo ln -sf "$CHROME" /opt/pw-browsers/chromium
+
+      - name: Static audit
+        run: python tests/static_audit.py output/RechDocs_v3.4.1.html
+
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('output/RechDocs_v3.4.1.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
+          Path('/tmp/rechdocs.js').write_text('\n'.join(scripts),encoding='utf-8')
+          PY
+          node --check /tmp/rechdocs.js
+
+      - name: Focused P0 review regressions
+        run: node tests/p0-clinical-rules.mjs
+
+      - name: Existing characterization suite
+        run: node tests/characterization/harness/run-characterization.mjs
+
+      - name: Assert candidate characterization
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('tests/characterization/reports/characterization_run_result.json').read_text(encoding='utf-8'))
+          bad=[]
+          for item in data.get('fixtures', data.get('results', [])):
+              if not isinstance(item,dict):
+                  continue
+              cand=item.get('candidate',{})
+              if cand.get('pass') is False:
+                  bad.append(item.get('id') or item.get('fixture') or 'unknown')
+          if bad:
+              raise SystemExit('candidate characterization failures: '+', '.join(bad))
+          print('candidate characterization assertions: PASS')
+          PY
+
+      - name: Create clean detached commit for PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PARENT_SHA: bf4b6c565afc5c719db1bc93ede87fbc7b89717e
+        run: |
+          set -euo pipefail
+          REPO="$GITHUB_REPOSITORY"
+          api="https://api.github.com/repos/$REPO"
+          auth=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+
+          BASE_TREE="$(curl -fsSL "${auth[@]}" "$api/git/commits/$PARENT_SHA" | jq -r .tree.sha)"
+
+          blob_for() {
+            local path="$1"
+            local payload
+            payload="$(base64 -w0 "$path")"
+            jq -n --arg content "$payload" '{content:$content,encoding:"base64"}' \
+              | curl -fsSL -X POST "${auth[@]}" "$api/git/blobs" -d @- | jq -r .sha
+          }
+
+          OUT_BLOB="$(blob_for output/RechDocs_v3.4.1.html)"
+          TEST_BLOB="$(blob_for tests/p0-clinical-rules.mjs)"
+          REPORT_BLOB="$(blob_for reports/P0_CLINICAL_RULES_2026-08-16.md)"
+
+          TREE_SHA="$(jq -n \
+            --arg base "$BASE_TREE" --arg out "$OUT_BLOB" --arg test "$TEST_BLOB" --arg report "$REPORT_BLOB" \
+            '{base_tree:$base,tree:[
+              {path:"output/RechDocs_v3.4.1.html",mode:"100644",type:"blob",sha:$out},
+              {path:"tests/p0-clinical-rules.mjs",mode:"100644",type:"blob",sha:$test},
+              {path:"reports/P0_CLINICAL_RULES_2026-08-16.md",mode:"100644",type:"blob",sha:$report}
+            ]}' \
+            | curl -fsSL -X POST "${auth[@]}" "$api/git/trees" -d @- | jq -r .sha)"
+
+          COMMIT_SHA="$(jq -n \
+            --arg message 'fix: address independent PR5 review findings' --arg tree "$TREE_SHA" --arg parent "$PARENT_SHA" \
+            '{message:$message,tree:$tree,parents:[$parent]}' \
+            | curl -fsSL -X POST "${auth[@]}" "$api/git/commits" -d @- | jq -r .sha)"
+
+          echo "DETACHED_COMMIT_SHA=$COMMIT_SHA"
+          echo "DETACHED_TREE_SHA=$TREE_SHA"
