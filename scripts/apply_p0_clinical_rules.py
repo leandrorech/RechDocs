@@ -295,7 +295,7 @@ required = [
     "OUTRAS INFUSÕES CONTÍNUAS: este array é EXCLUSIVAMENTE",
     "HEMOGRAMA — ÚNICA EXCEÇÃO DE SELEÇÃO",
     "conforme documento sem data registrada",
-    'status="solicitada"|"aguardando"|"realizada"',
+    'Solicitação NÃO é parecer realizado',
 ]
 for item in required:
     if item not in s:
