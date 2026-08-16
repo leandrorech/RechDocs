@@ -44,7 +44,9 @@ ALERTA CRÍTICO VISUAL → o usuário vê a inconsistência → cópia/impressã
     altera o estado de alerta.
 11. **O alerta só desaparece quando a condição que o gerou for efetivamente resolvida e
     recalculada** — na prática, uma nova geração sem pendências (`setCriticalAlert(false)` é
-    chamado no início de `processar()` e quando `pend.length === 0`).
+    chamado no início de `processar()` e quando `pend.length === 0`). Os dois lados dessa regra são
+    testados: a edição manual **não** apaga o alerta (E2E-01 cenário 8) e a resolução real **apaga**
+    (E2E-01 cenário 10). Sem o segundo, o banner ficaria preso e viraria ruído ignorável.
 12. **Auditoria sem fricção:** se houver pendência no momento da cópia/impressão, registra-se no log
     de auditoria que a saída ocorreu com alerta crítico ativo — **sem impedir a ação e sem exigir
     confirmação**.

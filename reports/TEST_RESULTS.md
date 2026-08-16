@@ -46,7 +46,7 @@ Resultado bruto completo: `tests/characterization/reports/characterization_run_r
 | P0-02b — empate assimétrico "VM ativa" × extubado (R-17) | FAIL | FAIL | **PASS** |
 | P0-03 — alerta crítico visível, saída sempre liberada | N/A | N/A | **PASS** |
 | CI-05 — compactação cumulativa de exames | N/A | FAIL (contrato incompatível) | **PASS** (6/6) |
-| E2E-01 — fluxo real de UI ponta a ponta | N/A | N/A | **PASS** (11/11) |
+| E2E-01 — fluxo real de UI ponta a ponta | N/A | N/A | **PASS** (12/12) |
 
 baseline e referência ficam `N/A` em P0-03/E2E-01 por não possuírem o mecanismo de alerta crítico
 desta versão — a baseline tinha bloqueio absoluto e a referência não tinha nem bloqueio nem
@@ -67,7 +67,7 @@ sinalização; nenhuma das duas atende ao contrato vigente.
 | 8. Sem mecanismo de bloqueio a contornar | PASS | `legacySymbols=[]`, `noBlockingMechanism=true` |
 | Controle: sem pendência | PASS | banner ausente, aviso ausente, cópia funcional |
 
-### Detalhe E2E-01 — 11 cenários de fluxo real de UI
+### Detalhe E2E-01 — 12 cenários de fluxo real de UI
 
 Dados 100% sintéticos/desidentificados (`PACIENTE TESTE E2E`, leito fictício). Nenhuma chave real; nenhuma requisição sai da máquina.
 
@@ -82,7 +82,8 @@ Dados 100% sintéticos/desidentificados (`PACIENTE TESTE E2E`, leito fictício).
 | 7. Audit log registra a saída com alerta | PASS | linha com timestamp ISO + pendência; alerta permanece ativo após a cópia |
 | 8. Edição manual não remove o alerta (R-01/R-07) | PASS | após `input`: alerta `true`, banner `true`, aviso `true`, cópia funcional; idem no `prefill-editor` com pendência de reconciliação |
 | 9. Segunda cópia continua funcionando | PASS | 1 escrita, alerta ainda ativo |
-| 10. Impressão/PDF com alerta | PASS | sem exceção, `print()` 1×, registrada no audit log |
+| 9b. Impressão/PDF com alerta | PASS | sem exceção, `print()` 1×, registrada no audit log |
+| 10. **Resolução real da pendência remove o alerta** | PASS | nova geração sem pendências: alerta `true → false`, banner `true → false`, aviso oculto, lista limpa, cópia segue funcional |
 | 11. Reiniciar sessão limpa estado/audit | PASS | output vazio, audit vazio, alerta `false`, banner ausente, `CRITICAL_OUTPUT_LOG.length=0` |
 
 Erros de página (exceção JS não tratada) durante todo o fluxo: **nenhum**. Erros de console: **nenhum**.
@@ -95,12 +96,15 @@ O bloqueador identificado na primeira passagem do gate (listener global de `inpu
 não há o que contornar.
 
 O requisito remanescente — **a edição manual não pode apagar a sinalização crítica** — foi
-implementado e verificado dinamicamente:
+implementado e verificado dinamicamente, junto com o seu complemento indispensável: **existe um
+caminho que apaga o alerta**, a resolução real da pendência. Sem esse par, o banner ficaria preso
+permanentemente e viraria ruído ignorável:
 
 | Cenário | Antes da edição | Depois de 1 evento `input` |
 |---|---|---|
 | Alerta ativo no preview | banner visível, `CRITICAL_ALERT_ACTIVE=true` | **banner visível, alerta `true`**, cópia funcional |
 | Pré-evolução com pendência de reconciliação | banner visível, alerta `true` | **banner visível, alerta `true`** |
+| **Resolução real** (nova geração sem pendências) | banner visível, alerta `true` | **banner oculto, alerta `false`** — E2E-01 cenário 10 |
 
 A fixture P0-03 também verifica que os símbolos do contrato antigo (`setCopyBlocked()`,
 `copiarComOverride()`, `COPY_BLOCKED`, `#btn-copiar-mesmo-assim`) não reapareceram: `legacySymbols=[]`,

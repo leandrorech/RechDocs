@@ -376,7 +376,41 @@ export async function runFullUiFlow(session) {
     auditMentionsPrint: /Impress/i.test(document.getElementById('audit-list').textContent || ''),
   }), print));
 
-  // --- 10. reiniciar sessao limpa estado/audit ---
+  // --- 10. RESOLUCAO REAL da pendencia remove o alerta ---
+  // Complemento indispensavel do cenario 8: se a edicao manual nao apaga o alerta, e preciso provar
+  // que existe um caminho que APAGA — caso contrario o banner ficaria preso para sempre, tao inutil
+  // quanto nao ter banner. O contrato diz que o alerta so some quando a condicao que o gerou for
+  // efetivamente resolvida e RECALCULADA. Aqui isso e feito pelo caminho real: dispara uma nova
+  // geracao pela UI (o stub responde com o payload sintetico limpo, sem pendencias) e observa se o
+  // alerta e o banner desaparecem sozinhos.
+  const alertBeforeRegen = await session.page.evaluate(() => ({
+    alertActive: CRITICAL_ALERT_ACTIVE,
+    bannerVisible: (document.getElementById('critical-banner').className || '').includes('show'),
+  }));
+  await session.page.click('#btn-gen');
+  await session.page.waitForFunction(
+    () => document.getElementById('btn-gen') && !document.getElementById('btn-gen').disabled,
+    { timeout: 30000 }
+  ).catch(() => {});
+  await flush();
+  const resolution = await session.page.evaluate((before) => {
+    const wBefore = window.__e2e.writes.length;
+    copiar();
+    return {
+      alertBefore: before.alertActive,
+      bannerBefore: before.bannerVisible,
+      alertAfterRegen: CRITICAL_ALERT_ACTIVE,
+      bannerAfterRegen: (document.getElementById('critical-banner').className || '').includes('show'),
+      warnAfterRegen: (document.getElementById('copy-warn').className || '').includes('show'),
+      bannerListAfterRegen: document.getElementById('critical-banner-list').textContent || '',
+      pendingCardShown: (document.getElementById('pending-card').className || '').includes('show'),
+      wBefore,
+    };
+  }, alertBeforeRegen);
+  await flush();
+  resolution.copyStillWorks = (await session.page.evaluate((prev) => window.__e2e.writes.length - prev.wBefore, resolution)) === 1;
+
+  // --- 11. reiniciar sessao limpa estado/audit ---
   const reset = await session.page.evaluate(() => {
     reiniciarTudo();
     return {
@@ -391,7 +425,7 @@ export async function runFullUiFlow(session) {
 
   return {
     supported: true,
-    generation, cleanCopy, editUnderAlert, alerted, copyWithAlert, secondCopy, print, reset,
+    generation, cleanCopy, editUnderAlert, alerted, copyWithAlert, secondCopy, print, resolution, reset,
     pageErrors: [...session.pageErrors],
     consoleErrors: [...session.consoleErrors],
   };

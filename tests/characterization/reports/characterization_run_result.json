@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-15T23:41:26.674Z",
+  "generatedAt": "2026-08-16T04:39:00.484Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -261,7 +261,7 @@
             "copyConfirms": 0,
             "printThrew": null,
             "printCalls": 1,
-            "auditText": "⚠ Cópia realizada em 2026-08-15T23:41:25.514Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B.\n⚠ Impressão/PDF realizada em 2026-08-15T23:41:25.514Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B."
+            "auditText": "⚠ Cópia realizada em 2026-08-16T04:38:58.945Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B.\n⚠ Impressão/PDF realizada em 2026-08-16T04:38:58.946Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B."
           },
           "afterEdit": {
             "bannerStillVisible": true,
@@ -382,7 +382,7 @@
             "beforeC": 0,
             "writes": 1,
             "confirms": 0,
-            "auditText": "⚠ Cópia realizada em 2026-08-15T23:41:26.580Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica de teste E2E.",
+            "auditText": "⚠ Cópia realizada em 2026-08-16T04:39:00.303Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica de teste E2E.",
             "auditCardVisible": true,
             "alertStillActive": true
           },
@@ -396,6 +396,17 @@
             "beforeP": 0,
             "printCalls": 1,
             "auditMentionsPrint": true
+          },
+          "resolution": {
+            "alertBefore": true,
+            "bannerBefore": true,
+            "alertAfterRegen": false,
+            "bannerAfterRegen": false,
+            "warnAfterRegen": false,
+            "bannerListAfterRegen": "",
+            "pendingCardShown": false,
+            "wBefore": 4,
+            "copyStillWorks": true
           },
           "reset": {
             "outputEmpty": true,

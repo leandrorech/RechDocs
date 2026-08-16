@@ -145,7 +145,8 @@
   `validateUndeclaredTransformations()` e os conflitos do `ClinicalState` não foram alterados — mudou
   a consequência, não a detecção.
 - **Teste correspondente:** `p0_03_copy_override_policy.mjs` (8 critérios, incluindo verificação de
-  que os símbolos do contrato antigo não reapareceram) e `e2e_full_ui_flow.mjs` (11 cenários).
+  que os símbolos do contrato antigo não reapareceram) e `e2e_full_ui_flow.mjs` (12 cenários,
+  incluindo o par completo: edição manual não apaga o alerta / resolução real apaga).
 - **Resultado do teste:** **IMPLEMENTED / VERIFIED** — candidata PASS nas duas fixtures.
 - **Responsável pela decisão / aprovação humana:** Leandro Rech (decisão de contrato, 2026-08-15).
 

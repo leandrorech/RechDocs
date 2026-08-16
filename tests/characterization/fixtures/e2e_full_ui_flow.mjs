@@ -21,8 +21,8 @@
 //   6. copia com alerta ativo funciona e nao exige confirmacao
 //   7. audit log registra a saida com alerta ativo
 //   8. edicao manual NAO remove o alerta (requisito remanescente do R-01/R-07)
-//   9. segunda copia continua funcionando
-//  10. impressao/PDF com alerta funciona e fica auditada
+//   9. segunda copia continua funcionando; impressao/PDF com alerta funciona e fica auditada
+//  10. RESOLUCAO REAL da pendencia (nova geracao sem pendencias) remove o alerta sozinho
 //  11. reiniciar sessao limpando estado/audit
 import { EVIDENCE_KIND } from '../harness/compare-results.mjs';
 import { runFullUiFlow } from '../harness/capture-state.mjs';
@@ -33,7 +33,8 @@ export const evidenceKind = EVIDENCE_KIND.DYNAMIC_E2E_EVIDENCE;
 export const expected =
   'Pelo caminho real da interface: geracao sem pendencia produz preview sem alerta e copia funcional; pendencia critica produz ' +
   'banner vermelho + lista + aviso nos botoes SEM bloquear nada; copia/impressao funcionam com alerta ativo, sem confirmacao, e ' +
-  'ficam registradas no audit log; edicao manual nao apaga o alerta; reiniciar sessao limpa saida, audit log e sinalizacao.';
+  'ficam registradas no audit log; edicao manual nao apaga o alerta, mas a resolucao real da pendencia (nova geracao) apaga; ' +
+  'reiniciar sessao limpa saida, audit log e sinalizacao.';
 
 export async function runOn(session) {
   const flow = await runFullUiFlow(session);
@@ -103,11 +104,24 @@ export async function runOn(session) {
   check(flow.secondCopy.writes === 1 && flow.secondCopy.alertStillActive === true,
     `Cenario 9 (segunda copia): writes=${flow.secondCopy.writes} (esperado 1), alerta ainda ativo=${flow.secondCopy.alertStillActive}.`);
 
-  // 10. impressao/PDF com alerta: funciona e fica auditada
+  // 9b. impressao/PDF com alerta: funciona e fica auditada
   check(flow.print.threw === null && flow.print.printCalls === 1,
-    `Cenario 10 (impressao/PDF): threw=${flow.print.threw}, window.print() chamado ${flow.print.printCalls}x (esperado 1).`);
+    `Cenario 9b (impressao/PDF): threw=${flow.print.threw}, window.print() chamado ${flow.print.printCalls}x (esperado 1).`);
   check(flow.print.auditMentionsPrint === true,
-    'Cenario 10b: impressao com alerta ativo nao foi registrada no log de auditoria.');
+    'Cenario 9c: impressao com alerta ativo nao foi registrada no log de auditoria.');
+
+  // 10. RESOLUCAO REAL da pendencia remove o alerta (complemento do cenario 8)
+  check(flow.resolution.alertBefore === true && flow.resolution.bannerBefore === true,
+    `Cenario 10 (pre-condicao): o alerta deveria estar ativo antes da regeracao (alerta=${flow.resolution.alertBefore}, banner=${flow.resolution.bannerBefore}).`);
+  check(flow.resolution.alertAfterRegen === false && flow.resolution.bannerAfterRegen === false,
+    `Cenario 10 (resolucao real remove o alerta): apos nova geracao SEM pendencias, o alerta deveria sumir sozinho — ` +
+    `alerta=${flow.resolution.alertAfterRegen}, banner=${flow.resolution.bannerAfterRegen}. Se ficar preso, o banner vira ruido permanente.`);
+  check(flow.resolution.warnAfterRegen === false,
+    `Cenario 10b: aviso junto aos botoes continuou visivel apos a pendencia ser resolvida (warn=${flow.resolution.warnAfterRegen}).`);
+  check(flow.resolution.bannerListAfterRegen === '',
+    `Cenario 10c: lista de pendencias nao foi limpa apos a resolucao ("${flow.resolution.bannerListAfterRegen}").`);
+  check(flow.resolution.copyStillWorks === true,
+    'Cenario 10d: apos a resolucao, copiar() deixou de funcionar.');
 
   // 11. reset limpa estado
   check(flow.reset.outputEmpty && flow.reset.auditEmpty && flow.reset.alertActive === false
