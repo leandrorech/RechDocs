@@ -1,0 +1,9 @@
+{
+  "name": "rechdocs-characterization",
+  "private": true,
+  "type": "module",
+  "description": "Harness de characterization/regressao para o RechDocs. Nao e o produto RechDocs em si.",
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

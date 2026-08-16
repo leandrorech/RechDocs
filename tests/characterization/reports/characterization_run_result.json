@@ -1,0 +1,454 @@
+{
+  "generatedAt": "2026-08-16T04:39:00.484Z",
+  "artifactMeta": {
+    "baseline": {
+      "key": "baseline",
+      "label": "Baseline v3.3.12-P1 (congelada)",
+      "path": "baseline/rech_docs_v3_3_12_P1.html",
+      "sha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667",
+      "bytes": 205250
+    },
+    "reference": {
+      "key": "reference",
+      "label": "Referencia v3.4.0",
+      "path": "reference/RechDocs_v3.4.0_reference.html",
+      "sha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073",
+      "bytes": 187738
+    },
+    "candidate": {
+      "key": "candidate",
+      "label": "Candidata atual (output/RechDocs_v3.4.1.html)",
+      "path": "output/RechDocs_v3.4.1.html",
+      "sha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d",
+      "bytes": 232640
+    }
+  },
+  "results": {
+    "P0-01": {
+      "baseline": {
+        "pass": false,
+        "failures": [
+          "PEEP do episodio encerrado vazou: peep=\"8\" (esperado ausente).",
+          "VC do episodio encerrado vazou: vc_ml=\"420\" (esperado ausente)."
+        ],
+        "observed": {
+          "ventilatorio": {
+            "modo": "PCV",
+            "fio2": "40",
+            "peep": "8",
+            "vc_ml": "420"
+          },
+          "conflitos": [],
+          "warnings": [],
+          "auditLog": [
+            "Ventilatório: modo atualizado para \"PCV\" (03/07/2026) — evento de maior precedência."
+          ],
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667"
+      },
+      "reference": {
+        "pass": true,
+        "failures": [],
+        "observed": {
+          "ventilatorio": {
+            "modo": "PCV",
+            "fio2": "40"
+          },
+          "conflitos": [],
+          "warnings": [],
+          "auditLog": [],
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
+      },
+      "candidate": {
+        "pass": true,
+        "failures": [],
+        "observed": {
+          "ventilatorio": {
+            "modo": "PCV",
+            "fio2": "40"
+          },
+          "conflitos": [],
+          "warnings": [],
+          "auditLog": [],
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+      }
+    },
+    "P0-02": {
+      "baseline": {
+        "pass": false,
+        "failures": [
+          "P0-02b (assimetrico \"VM ativa\" x \"extubado\") — nenhum conflito detectado; estado resolvido silenciosamente para \"extubado (implicito, sem sinalizacao)\". copyEffect={\"supported\":true,\"pendencies\":[],\"wouldRaiseCriticalAlert\":false} (nenhum alerta critico apesar da contradicao)."
+        ],
+        "observed": {
+          "symmetric": {
+            "conflictDetected": true,
+            "silentlyResolved": null,
+            "ventilatorio": {
+              "modo": "PCV"
+            },
+            "conflitos": [
+              "Conflito ventilatório: evento \"extubado\" (05/07/2026) empatou com evento \"intubado\" (05/07/2026). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente."
+            ],
+            "copyEffect": {
+              "supported": true,
+              "pendencies": [
+                "VM sem FiO₂.",
+                "VM sem PEEP.",
+                "VM sem PaO₂/gasometria estruturada para P/F.",
+                "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
+              ],
+              "wouldRaiseCriticalAlert": true
+            },
+            "pageErrors": [],
+            "consoleErrors": []
+          },
+          "asymmetric": {
+            "conflictDetected": false,
+            "silentlyResolved": "extubado (implicito, sem sinalizacao)",
+            "ventilatorio": {},
+            "conflitos": [],
+            "copyEffect": {
+              "supported": true,
+              "pendencies": [],
+              "wouldRaiseCriticalAlert": false
+            },
+            "pageErrors": [],
+            "consoleErrors": []
+          }
+        },
+        "artifactSha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667"
+      },
+      "reference": {
+        "pass": false,
+        "failures": [
+          "P0-02b (assimetrico \"VM ativa\" x \"extubado\") — nenhum conflito detectado; estado resolvido silenciosamente para \"extubado (implicito, sem sinalizacao)\". copyEffect={\"supported\":true,\"pendencies\":[],\"wouldRaiseCriticalAlert\":false} (nenhum alerta critico apesar da contradicao)."
+        ],
+        "observed": {
+          "symmetric": {
+            "conflictDetected": true,
+            "silentlyResolved": null,
+            "ventilatorio": {
+              "modo": "PCV"
+            },
+            "conflitos": [
+              "⛔ Conflito ventilatório bloqueante: há menções empatadas de VM ativa e extubação/retirada, sem cronologia suficiente para definir o estado atual. Mantido o primeiro evento apenas para exibição — CONFIRME MANUALMENTE antes de assinar.",
+              "VM: estado ativo determinado, mas nenhum evento ventilatório cronologicamente posterior à última extubação foi encontrado — revisar cronologia manualmente."
+            ],
+            "copyEffect": {
+              "supported": true,
+              "pendencies": [
+                "VM sem FiO₂.",
+                "VM sem PEEP.",
+                "VM sem PaO₂/gasometria estruturada para P/F.",
+                "Existe alerta crítico bloqueante no card de alertas."
+              ],
+              "wouldRaiseCriticalAlert": true
+            },
+            "pageErrors": [],
+            "consoleErrors": []
+          },
+          "asymmetric": {
+            "conflictDetected": false,
+            "silentlyResolved": "extubado (implicito, sem sinalizacao)",
+            "ventilatorio": {},
+            "conflitos": [],
+            "copyEffect": {
+              "supported": true,
+              "pendencies": [],
+              "wouldRaiseCriticalAlert": false
+            },
+            "pageErrors": [],
+            "consoleErrors": []
+          }
+        },
+        "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
+      },
+      "candidate": {
+        "pass": true,
+        "failures": [],
+        "observed": {
+          "symmetric": {
+            "conflictDetected": true,
+            "silentlyResolved": null,
+            "ventilatorio": {
+              "modo": "PCV"
+            },
+            "conflitos": [
+              "Conflito ventilatório: evento \"extubado\" (05/07/2026) empatou com evento \"intubado\" (05/07/2026). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente."
+            ],
+            "copyEffect": {
+              "supported": true,
+              "pendencies": [
+                "VM sem FiO₂.",
+                "VM sem PEEP.",
+                "VM sem PaO₂/gasometria estruturada para P/F.",
+                "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
+              ],
+              "wouldRaiseCriticalAlert": true
+            },
+            "pageErrors": [],
+            "consoleErrors": []
+          },
+          "asymmetric": {
+            "conflictDetected": true,
+            "silentlyResolved": null,
+            "ventilatorio": {
+              "modo": "PCV"
+            },
+            "conflitos": [
+              "Conflito ventilatório: evento \"extubado\" (05/07/2026) empatou com evento \"vm ativa\" (05/07/2026). A extubação/ativação da VM NÃO foi decidida automaticamente — CONFIRME MANUALMENTE o suporte vigente."
+            ],
+            "copyEffect": {
+              "supported": true,
+              "pendencies": [
+                "VM sem FiO₂.",
+                "VM sem PEEP.",
+                "VM sem PaO₂/gasometria estruturada para P/F.",
+                "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
+              ],
+              "wouldRaiseCriticalAlert": true
+            },
+            "pageErrors": [],
+            "consoleErrors": []
+          }
+        },
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+      }
+    },
+    "P0-03": {
+      "baseline": {
+        "pass": null,
+        "failures": [],
+        "observed": {
+          "supported": false,
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667"
+      },
+      "reference": {
+        "pass": null,
+        "failures": [],
+        "observed": {
+          "supported": false,
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
+      },
+      "candidate": {
+        "pass": true,
+        "failures": [],
+        "observed": {
+          "supported": true,
+          "withPending": {
+            "bannerVisible": true,
+            "bannerClass": "critical-banner show",
+            "bannerTitle": "⚠ Atenção — existem inconsistências/pendências críticas. Revise as informações antes de usar este documento.",
+            "bannerMentionsAtencao": true,
+            "bannerListText": "□ Pendencia critica sintetica A.\n□ Pendencia critica sintetica B.",
+            "copyWarnVisible": true,
+            "copyButtonDisabled": false,
+            "copyWrites": 1,
+            "copyConfirms": 0,
+            "printThrew": null,
+            "printCalls": 1,
+            "auditText": "⚠ Cópia realizada em 2026-08-16T04:38:58.945Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B.\n⚠ Impressão/PDF realizada em 2026-08-16T04:38:58.946Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B."
+          },
+          "afterEdit": {
+            "bannerStillVisible": true,
+            "alertStillActive": true,
+            "copyStillWorks": true
+          },
+          "noPending": {
+            "bannerVisible": false,
+            "copyWarnVisible": false,
+            "copyButtonDisabled": false,
+            "copyWrites": 1
+          },
+          "legacySymbols": [],
+          "noBlockingMechanism": true,
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+      }
+    },
+    "CI-05": {
+      "baseline": {
+        "pass": null,
+        "failures": [],
+        "observed": {
+          "supported": false
+        },
+        "notApplicable": true,
+        "artifactSha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667"
+      },
+      "reference": {
+        "pass": false,
+        "failures": [
+          "Caso 1 (duplicata exata): esperado 1 ocorrencia de Hb 8.9, observado 0.",
+          "Caso 2 (resultado diferente): esperado K 3.2 e K 4.1 ambos presentes; observado K3.2=false, K4.1=false.",
+          "Caso 3 (datas diferentes): esperado Creatinina em 2 grupos de data, observado 0 ocorrencia(s).",
+          "Caso 4 (horarios diferentes): esperado Lactato em 2 ocorrencias (horarios distintos), observado 0.",
+          "Caso 5 (unidades diferentes): esperado ambas unidades presentes; mg/dL=false, micromol/L=false."
+        ],
+        "observed": {
+          "compactedText": "LAB: Hb (01/07/2026 08:00): 8.9 | Hb (01/07/2026 08:00): 8.9 | K (02/07/2026 09:00): 3.2 | K (02/07/2026 09:00): 4.1 | Creatinina (01/07/2026 08:00): 1.8 | Creatinina (03/07/2026 08:00): 1.8 | Bilirrubina total (05/07/2026 07:00): 1.5 | Bilirrubina total (05/07/2026 07:00): 1.5\nGASO: Lactato (04/07/2026 06:00): 2.0 | Lactato (04/07/2026 18:00): 2.0",
+          "unchanged": true,
+          "sameReference": true
+        },
+        "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
+      },
+      "candidate": {
+        "pass": true,
+        "failures": [],
+        "observed": {
+          "compactedText": "LAB [01/07/2026 08:00]: Hb: 8.9 g/dL | Creatinina: 1.8 mg/dL\nLAB [02/07/2026 09:00]: K: 3.2 mEq/L | K: 4.1 mEq/L\nLAB [03/07/2026 08:00]: Creatinina: 1.8 mg/dL\nGASO [04/07/2026 06:00]: Lactato: 2.0 mmol/L\nGASO [04/07/2026 18:00]: Lactato: 2.0 mmol/L\nLAB [05/07/2026 07:00]: Bilirrubina total: 1.5 mg/dL | Bilirrubina total: 1.5 micromol/L",
+          "unchanged": true,
+          "sameReference": true
+        },
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+      }
+    },
+    "E2E-01": {
+      "baseline": {
+        "pass": null,
+        "failures": [],
+        "observed": {
+          "supported": false,
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "56faa85057464a6fa65fafd4fce631eea446a01dc6b1fc7d6dc34a2eeeaef667"
+      },
+      "reference": {
+        "pass": null,
+        "failures": [],
+        "observed": {
+          "supported": false,
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "6c8e823bae12d3bfd9c577375adaf888f19f1babac35f1c04ee67534c3dd0073"
+      },
+      "candidate": {
+        "pass": true,
+        "failures": [],
+        "observed": {
+          "supported": true,
+          "generation": {
+            "outputCardVisible": true,
+            "outputTextLength": 1227,
+            "statusText": "Documento gerado — confira alertas/auditoria acima antes de assinar.",
+            "pendingText": "",
+            "criticalAlertAfterGeneration": false,
+            "bannerVisible": false,
+            "copyButtonDisabled": false,
+            "pageErrors": []
+          },
+          "cleanCopy": {
+            "before": 0,
+            "writes": 1
+          },
+          "editUnderAlert": {
+            "alertBefore": true,
+            "bannerBefore": true,
+            "alertAfterEdit": true,
+            "bannerAfterEdit": true,
+            "warnAfterEdit": true,
+            "copyDisabledAfterEdit": false,
+            "writesAfterEdit": 1,
+            "prefillAlertSurvives": true
+          },
+          "alerted": {
+            "before": 2,
+            "alertActive": true,
+            "bannerVisible": true,
+            "bannerListText": "□ Pendencia critica sintetica de teste E2E.",
+            "copyWarnVisible": true,
+            "copyButtonDisabled": false
+          },
+          "copyWithAlert": {
+            "beforeW": 2,
+            "beforeC": 0,
+            "writes": 1,
+            "confirms": 0,
+            "auditText": "⚠ Cópia realizada em 2026-08-16T04:39:00.303Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica de teste E2E.",
+            "auditCardVisible": true,
+            "alertStillActive": true
+          },
+          "secondCopy": {
+            "beforeW": 3,
+            "alertStillActive": true,
+            "writes": 1
+          },
+          "print": {
+            "threw": null,
+            "beforeP": 0,
+            "printCalls": 1,
+            "auditMentionsPrint": true
+          },
+          "resolution": {
+            "alertBefore": true,
+            "bannerBefore": true,
+            "alertAfterRegen": false,
+            "bannerAfterRegen": false,
+            "warnAfterRegen": false,
+            "bannerListAfterRegen": "",
+            "pendingCardShown": false,
+            "wBefore": 4,
+            "copyStillWorks": true
+          },
+          "reset": {
+            "outputEmpty": true,
+            "auditEmpty": true,
+            "alertActive": false,
+            "bannerVisible": false,
+            "outputLogLength": 0,
+            "outputCardHidden": true
+          },
+          "pageErrors": [],
+          "consoleErrors": []
+        },
+        "artifactSha256": "0a6bea778e7edddca5fa693d344986c87fd4068cd5bca97948f6a563d8df058d"
+      }
+    }
+  },
+  "classifications": {
+    "P0-01": {
+      "label": "EXPECTED_CHANGE",
+      "rationale": "Candidata corrige um bug presente na baseline — mudanca desejada, nao regressao."
+    },
+    "P0-02": {
+      "P0-02a": {
+        "label": "EXPECTED_CHANGE",
+        "rationale": "Mecanismo de deteccao de empate funciona nos tres artefatos e efetivamente dispara o alerta critico — comportamento correto confirmado dinamicamente."
+      },
+      "P0-02b": {
+        "label": "UNRESOLVED",
+        "rationale": "Combinacao mista entre artefatos — revisar manualmente antes de reconciliar."
+      }
+    },
+    "P0-03": {
+      "label": "EXPECTED_CHANGE",
+      "rationale": "Candidata implementa o contrato vigente: alerta critico visivel e maximo, sem qualquer bloqueio de copia/impressao. baseline e referencia sao N/A (nao possuem o mecanismo de alerta desta versao); a baseline tinha bloqueio absoluto e a referencia nao tinha nem bloqueio nem sinalizacao — nenhuma das duas atende ao contrato atual."
+    },
+    "CI-05": {
+      "label": "EXPECTED_CHANGE",
+      "rationale": "Baseline nao tem essa funcao (N/A, esperado). reference: 5 caso(s) com falha — implementacao estruturalmente diferente da candidata (sem unidade, sem dedupe, agrupamento so por tipo), nao um defeito por criterio proprio; FAIL aqui reflete incompatibilidade de contrato entre as duas funcoes homonimas, nao um bug da referencia. candidate: todos os 6 casos OK, confirmando os 6 casos minimos descritos em CHANGE_IMPACT.md CI-05."
+    },
+    "E2E-01": {
+      "label": "EXPECTED_CHANGE",
+      "rationale": "Candidata percorre o fluxo real de UI ponta a ponta sem excecao, com sinalizacao critica maxima e sem qualquer bloqueio de copia/impressao. baseline/referencia sao N/A por nao possuirem o mecanismo de alerta desta versao."
+    }
+  }
+}
