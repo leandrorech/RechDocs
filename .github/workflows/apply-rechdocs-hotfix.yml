@@ -1,5 +1,6 @@
 name: Apply RechDocs P0 clinical rules
 
+# rerun-marker: unit-safeguard-v2
 on:
   push:
     branches:
