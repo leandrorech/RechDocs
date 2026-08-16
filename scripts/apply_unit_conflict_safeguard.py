@@ -19,6 +19,7 @@ new = """function unitConflictNames(exams){
   return new Set([...byName.entries()].filter(([,units])=>units.size>1).map(([name])=>name));
 }
 function formatCompactExam(e,showUnit=false){
+  showUnit=showUnit||Boolean(e&&e.__showUnit);
   let result=examResultForOutput(e);
   const unit=cleanStr(e&&e.unidade);
   if(showUnit&&unit)result=result?`${result} ${unit}`:unit;
@@ -28,6 +29,7 @@ if old not in s:
     raise SystemExit('formatCompactExam patched block not found')
 s = s.replace(old, new, 1)
 
+# Full examination renderer: omit redundant units; show only actual unit conflicts.
 old = """  const exArr=sortAndDedupeExams(normalizeExamsForOutput(d.exames));
   if(exArr.length){"""
 new = """  const exArr=sortAndDedupeExams(normalizeExamsForOutput(d.exames));
@@ -48,23 +50,19 @@ if old not in s:
     raise SystemExit('buildExames result marker not found')
 s = s.replace(old, new, 1)
 
-# buildExamesCompactos() has had small layout/indent changes across revisions.
+# Compact renderer: normalized exam entries are copies, so a private presentation flag
+# can be attached without mutating d.exames. Existing renderer calls remain untouched.
 pattern = r'(?m)^(?P<indent>\s*)const exams=sortAndDedupeExams\(normalizeExamsForOutput\(d&&d\.exames\)\);\s*$'
 m = re.search(pattern, s)
 if not m:
     raise SystemExit('compact normalized exam list marker not found')
 indent = m.group('indent')
-replacement = m.group(0) + '\n' + indent + 'const unitConflicts=unitConflictNames(exams);'
-s = s[:m.start()] + replacement + s[m.end():]
-
-# Any remaining call formatCompactExam(e) inside the compact renderer gets the conflict flag.
-s, n = re.subn(
-    r'formatCompactExam\(e\)',
-    'formatCompactExam(e,unitConflicts.has(keyName(e.nome)))',
-    s,
+replacement = (
+    m.group(0)
+    + '\n' + indent + 'const unitConflicts=unitConflictNames(exams);'
+    + '\n' + indent + "exams.forEach(e=>{if(unitConflicts.has(keyName(e.nome)))e.__showUnit=true;});"
 )
-if n < 1:
-    raise SystemExit('compact formatter call not found')
+s = s[:m.start()] + replacement + s[m.end():]
 
 # Export helper for focused tests without changing product behavior.
 old = 'window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG,isContinuousInfusion,normalizeExamsForOutput,compactHemogramResult,formatCompactExam,buildExames,buildExamesCompactos,buildInterconsultas,collectTemporalAnchoringWarnings,buildSystemPrompt};'
