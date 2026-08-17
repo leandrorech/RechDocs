@@ -1,0 +1,48 @@
+name: RechDocs v3.4.2 multi-provider
+on:
+  push:
+    branches: [feat/rechdocs-v3.4.2]
+    paths:
+      - 'scripts/add_rech_ai_multiprovider.py'
+      - '.github/workflows/build-v342-multiprovider.yml'
+permissions:
+  contents: write
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build v3.4.2 from current P0-corrected v3.4.1
+        run: |
+          python scripts/build_v342.py
+          python scripts/add_rech_ai_multiprovider.py
+          python scripts/patch_v342_tests.py
+      - name: Static contract and P0 preservation
+        run: |
+          python tests/static_audit.py output/RechDocs_v3.4.2.html
+          grep -q 'RECH-AI-01' output/RechDocs_v3.4.2.html
+          grep -q "data-provider=\"kimi\"" output/RechDocs_v3.4.2.html
+          grep -q "data-provider=\"custom\"" output/RechDocs_v3.4.2.html
+          grep -q 'kimi-k2.6' output/RechDocs_v3.4.2.html
+          grep -q 'api.moonshot.ai/v1/chat/completions' output/RechDocs_v3.4.2.html
+          grep -q 'customChatEndpoint' output/RechDocs_v3.4.2.html
+          grep -q 'SEM DATA REGISTRADA' output/RechDocs_v3.4.2.html
+          grep -q 'function isContinuousInfusion' output/RechDocs_v3.4.2.html
+          grep -q "showUnit=unitConflict.has" output/RechDocs_v3.4.2.html
+          grep -q 'hora||' output/RechDocs_v3.4.2.html
+      - name: Browser characterization and existing release guard
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          export PLAYWRIGHT_CHROMIUM_EXECUTABLE=$(node --input-type=module -e "import { chromium } from 'playwright'; console.log(chromium.executablePath())")
+          node tests/characterization/harness/run-characterization.mjs
+          python scripts/check_characterization_candidate.py
+          node tests/v342_guard.mjs
+      - name: Commit regenerated candidate
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add output/RechDocs_v3.4.2.html AGENTS.md tests/characterization reports || true
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'feat: RechDocs v3.4.2 multi-provider candidate'
+          git push origin HEAD:feat/rechdocs-v3.4.2
