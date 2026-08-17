@@ -28,8 +28,9 @@ jobs:
           grep -q 'customChatEndpoint' output/RechDocs_v3.4.2.html
           grep -q 'SEM DATA REGISTRADA' output/RechDocs_v3.4.2.html
           grep -q 'function isContinuousInfusion' output/RechDocs_v3.4.2.html
-          grep -q "showUnit=unitConflict.has" output/RechDocs_v3.4.2.html
-          grep -q 'hora||' output/RechDocs_v3.4.2.html
+          grep -q 'e.__showUnit=true' output/RechDocs_v3.4.2.html
+          grep -q "keyName(e.unidade||'')" output/RechDocs_v3.4.2.html
+          grep -q 'cleanStr(e.hora)' output/RechDocs_v3.4.2.html
       - name: Browser characterization and existing release guard
         run: |
           npm ci
