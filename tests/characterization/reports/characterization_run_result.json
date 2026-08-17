@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-16T18:57:43.024Z",
+  "generatedAt": "2026-08-17T03:23:31.713Z",
   "artifactMeta": {
     "baseline": {
       "key": "baseline",
@@ -19,8 +19,8 @@
       "key": "candidate",
       "label": "Candidata atual (output/RechDocs_v3.4.2.html)",
       "path": "output/RechDocs_v3.4.2.html",
-      "sha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1",
-      "bytes": 233636
+      "sha256": "ada6cd142493f2bd865e2412472445664cb8668d6e95d1d25ce796f57d4d2492",
+      "bytes": 245403
     }
   },
   "results": {
@@ -78,7 +78,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
+        "artifactSha256": "ada6cd142493f2bd865e2412472445664cb8668d6e95d1d25ce796f57d4d2492"
       }
     },
     "P0-02": {
@@ -190,7 +190,7 @@
                 "VM sem FiO₂.",
                 "VM sem PEEP.",
                 "VM sem PaO₂/gasometria estruturada para P/F.",
-                "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
+                "Existe conflito de estado não resolvido; confirme/corrija os dados antes de usar o documento."
               ],
               "wouldRaiseCriticalAlert": true
             },
@@ -212,7 +212,7 @@
                 "VM sem FiO₂.",
                 "VM sem PEEP.",
                 "VM sem PaO₂/gasometria estruturada para P/F.",
-                "Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar."
+                "Existe conflito de estado não resolvido; confirme/corrija os dados antes de usar o documento."
               ],
               "wouldRaiseCriticalAlert": true
             },
@@ -220,7 +220,7 @@
             "consoleErrors": []
           }
         },
-        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
+        "artifactSha256": "ada6cd142493f2bd865e2412472445664cb8668d6e95d1d25ce796f57d4d2492"
       }
     },
     "P0-03": {
@@ -261,7 +261,7 @@
             "copyConfirms": 0,
             "printThrew": null,
             "printCalls": 1,
-            "auditText": "⚠ Cópia realizada em 2026-08-16T18:57:41.605Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B.\n⚠ Impressão/PDF realizada em 2026-08-16T18:57:41.606Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B."
+            "auditText": "⚠ Cópia realizada em 2026-08-17T03:23:30.278Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B.\n⚠ Impressão/PDF realizada em 2026-08-17T03:23:30.278Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica A. | Pendencia critica sintetica B."
           },
           "afterEdit": {
             "bannerStillVisible": true,
@@ -279,7 +279,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
+        "artifactSha256": "ada6cd142493f2bd865e2412472445664cb8668d6e95d1d25ce796f57d4d2492"
       }
     },
     "CI-05": {
@@ -312,11 +312,11 @@
         "pass": true,
         "failures": [],
         "observed": {
-          "compactedText": "LAB [01/07/2026 08:00]: Hb: 8.9 g/dL | Creatinina: 1.8 mg/dL\nLAB [02/07/2026 09:00]: K: 3.2 mEq/L | K: 4.1 mEq/L\nLAB [03/07/2026 08:00]: Creatinina: 1.8 mg/dL\nGASO [04/07/2026 06:00]: Lactato: 2.0 mmol/L\nGASO [04/07/2026 18:00]: Lactato: 2.0 mmol/L\nLAB [05/07/2026 07:00]: Bilirrubina total: 1.5 mg/dL | Bilirrubina total: 1.5 micromol/L",
+          "compactedText": "LAB [01/07/2026 08:00]: Hb: 8.9 | Creatinina: 1.8\nLAB [02/07/2026 09:00]: K: 3.2 | K: 4.1\nLAB [03/07/2026 08:00]: Creatinina: 1.8\nGASO [04/07/2026 06:00]: Lactato: 2.0\nGASO [04/07/2026 18:00]: Lactato: 2.0\nLAB [05/07/2026 07:00]: Bilirrubina total: 1.5 mg/dL | Bilirrubina total: 1.5 micromol/L",
           "unchanged": true,
           "sameReference": true
         },
-        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
+        "artifactSha256": "ada6cd142493f2bd865e2412472445664cb8668d6e95d1d25ce796f57d4d2492"
       }
     },
     "E2E-01": {
@@ -382,7 +382,7 @@
             "beforeC": 0,
             "writes": 1,
             "confirms": 0,
-            "auditText": "⚠ Cópia realizada em 2026-08-16T18:57:42.887Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica de teste E2E.",
+            "auditText": "⚠ Cópia realizada em 2026-08-17T03:23:31.548Z COM ALERTA CRÍTICO ATIVO — Pendencia critica sintetica de teste E2E.",
             "auditCardVisible": true,
             "alertStillActive": true
           },
@@ -419,7 +419,7 @@
           "pageErrors": [],
           "consoleErrors": []
         },
-        "artifactSha256": "b2e053082a5f7c8ca10c5d3efc2d69c5f515e904a52f2837a7b4947953a80de1"
+        "artifactSha256": "ada6cd142493f2bd865e2412472445664cb8668d6e95d1d25ce796f57d4d2492"
       }
     }
   },

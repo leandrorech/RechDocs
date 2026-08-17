@@ -187,6 +187,8 @@ textarea:focus,.apikey-input:focus{outline:none;border-color:var(--accent)}
     <button class="tab" data-provider="gemini" onclick="setProvider('gemini')">Google (Gemini)</button>
     <button class="tab" data-provider="deepseek" onclick="setProvider('deepseek')">DeepSeek</button>
     <button class="tab" data-provider="qwen" onclick="setProvider('qwen')">Qwen</button>
+    <button class="tab" data-provider="kimi" onclick="setProvider('kimi')">Kimi</button>
+    <button class="tab" data-provider="custom" onclick="if(configureCustomProvider())setProvider('custom')">Custom</button>
   </div>
   <div class="pdf-progress" id="vision-warn" style="display:none;color:var(--danger)"></div>
   <div class="row" style="margin-top:8px">
@@ -1160,6 +1162,7 @@ function futurePlanWarnings(text){
   return risky;
 }
 // ═══════════════════════════════════════════════════════
+// RECH-AI-01: seleção explícita de provedor/modelo; sem fallback silencioso.
 // PROVEDORES — configuração e troca de UI
 // ═══════════════════════════════════════════════════════
 let PROVIDER='anthropic';
@@ -1196,17 +1199,40 @@ const PROVIDER_CFG={
     ]
   },
   qwen:{
-    // Catálogo oficial Alibaba Model Studio 16/08/2026. Ambos aceitam texto+imagem no endpoint
-    // Anthropic-compatible; o domínio global de Singapore permanece funcional.
+    // Catálogo oficial Alibaba Model Studio 16/08/2026.
     keyPrefix:'sk-', placeholder:'sk-...', supportsVision:true,
     models:[
       {v:'qwen3.6-flash',l:'qwen3.6-flash (rápido/barato + visão)'},
       {v:'qwen3.7-plus',l:'qwen3.7-plus (mais capaz + visão)'}
     ]
+  },
+  kimi:{
+    keyPrefix:'sk-', placeholder:'sk-...', supportsVision:true,
+    models:[{v:'kimi-k2.6',l:'kimi-k2.6'}]
+  },
+  custom:{
+    keyPrefix:'', placeholder:'API key...', supportsVision:false,
+    models:[{v:'custom-model',l:'custom-model'}]
   }
 
 };
+function configureCustomProvider(){
+  const oldBase=safeLocalStorage.getItem('custom_base_url')||'';
+  const oldModel=safeLocalStorage.getItem('model_custom')||'';
+  const base=prompt('Base URL OpenAI-compatible (ex.: https://servidor.exemplo/v1):',oldBase);
+  if(base===null)return false;
+  const model=prompt('ID exato do modelo:',oldModel);
+  if(model===null||!model.trim())return false;
+  safeLocalStorage.setItem('custom_base_url',base.trim());
+  safeLocalStorage.setItem('model_custom',model.trim());
+  PROVIDER_CFG.custom.models=[{v:model.trim(),l:model.trim()}];
+  return true;
+}
 function setProvider(p){
+  if(p==='custom'){
+    const cm=safeLocalStorage.getItem('model_custom')||'custom-model';
+    PROVIDER_CFG.custom.models=[{v:cm,l:cm}];
+  }
   PROVIDER=p;
   safeLocalStorage.setItem('provider_v3',p);
   document.querySelectorAll('#provider-tabs .tab').forEach(b=>b.classList.toggle('active',b.dataset.provider===p));
@@ -1660,7 +1686,7 @@ class ClinicalState{
     const withScore=arr.map(e=>({...e,_score:parseDateTimeScore(e.data,e.hora)}));
     withScore.sort((a,b)=>(a._score||0)-(b._score||0));
     for(const e of withScore){
-      const dedupeKey=keyName(e.nome)+'|'+cleanStr(e.data)+'|'+keyName(e.resultado||'');
+      const dedupeKey=JSON.stringify([keyName(e.nome),cleanStr(e.resultado),keyName(e.unidade||''),cleanStr(e.data),cleanStr(e.hora)]);
       if(seen.has(dedupeKey))continue;
       seen.add(dedupeKey);
       const {_score,...clean}=e;
@@ -1668,20 +1694,19 @@ class ClinicalState{
     }
     return out;
   }
-  // Interconsultas: mesma lógica de exames — nunca versiona/sobrescreve, apenas acumula
-  // cronologicamente. Data é OBRIGATÓRIA e nunca inferida; ausência é sinalizada como
-  // conflito explícito para revisão manual (nunca silenciosa).
+  // Interconsultas: nunca versiona/sobrescreve; acumula cronologicamente. Data nunca é inventada.
+  // Quando faltar âncora temporal, a ausência permanece explícita no output e no painel de atenção.
   acumularInterconsultas(list){
     const arr=asArray(list).filter(i=>i&&cleanStr(i.especialidade));
     const semData=arr.filter(i=>!cleanStr(i.data));
     if(semData.length){
-      this.conflitos.push(`${semData.length} interconsulta(s) sem data — não é possível posicionar na linha do tempo. Confirme manualmente: ${semData.map(i=>i.especialidade).join(', ')}.`);
+      this.conflitos.push(`${semData.length} interconsulta(s) sem data/âncora temporal — mantida(s) explicitamente como SEM DATA REGISTRADA; confirme a cronologia quando possível: ${semData.map(i=>i.especialidade).join(', ')}.`);
     }
     const seen=new Set(); const out=[];
     const withScore=arr.map(i=>({...i,_score:parseDateTimeScore(i.data,i.hora)}));
     withScore.sort((a,b)=>(a._score||0)-(b._score||0));
     for(const i of withScore){
-      const dedupeKey=keyName(i.especialidade)+'|'+cleanStr(i.data)+'|'+keyName(i.status||'');
+      const dedupeKey=JSON.stringify([keyName(i.especialidade),cleanStr(i.data),cleanStr(i.hora),keyName(i.status||''),keyName(i.motivo||''),keyName(i.parecer||'')]);
       if(seen.has(dedupeKey))continue;
       seen.add(dedupeKey);
       const {_score,...clean}=i;
@@ -1925,8 +1950,23 @@ function hasActiveDrug(list,patterns,field){
   const pats=patterns.map(p=>p instanceof RegExp?p:new RegExp(p,'i'));
   return asArray(list).some(x=>pats.some(re=>re.test(String(x[field]||x.nome||x.droga||''))) && !['suspenso','retirado'].includes(x.status));
 }
+function collectTemporalAnchoringWarnings(d){
+  const vals=[d&&d.hda,d&&d.admissao_uti,d&&d.evolucao_medica,d&&d.intercorrencias,d&&d.impressao_clinica,...asArray(d&&d.condutas)];
+  asArray(d&&d.interconsultas).forEach(i=>{vals.push(i&&i.motivo,i&&i.parecer);});
+  const rel=/\b(?:hoje|ontem|amanh[aã]|semana\s+passada|m[eê]s\s+passado|ano\s+passado|h[aá]\s+(?:cerca\s+de\s+|aproximadamente\s+)?(?:\d+|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|quinze|vinte|trinta)\s+(?:dia|dias|semana|semanas|m[eê]s|meses|hora|horas)|(?:\d+|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|quinze|vinte|trinta)\s+(?:dia|dias|semana|semanas|m[eê]s|meses|hora|horas)\s+atr[aá]s)\b/i;
+  const date=/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b/;
+  const explicitUnknown=/documento\s+sem\s+data(?:\s+registrada)?/i;
+  const warns=[];
+  vals.filter(Boolean).forEach(v=>String(v).split(/\n+/).forEach(line=>{
+    if(rel.test(line)&&!date.test(line)&&!explicitUnknown.test(line))warns.push(`⚠ Referência temporal relativa sem âncora explícita no texto final: "${cleanStr(line).slice(0,160)}". Converter pela data da fonte ou declarar documento sem data.`);
+  }));
+  return [...new Set(warns)];
+}
 function runValidations(d,engineWarnings){
   const warns=[...(engineWarnings||[])];
+  warns.push(...collectTemporalAnchoringWarnings(d));
+  const invalidas=asArray(d.outras_infusoes).filter(o=>o&&o.droga&&!isContinuousInfusion(o));
+  if(invalidas.length)warns.push(`⛔ OUTRAS INFUSÕES CONTÍNUAS recebeu regime não contínuo/intermitente (${invalidas.map(o=>o.droga).join(', ')}). Esses itens foram ocultados dessa linha; reclassifique na seção correta.`);
   if(d.monitor)warns.push(...validarPAM(d.monitor));
   if(isMechanicalVentilationMode(d.ventilatorio)){
     const dp=calcDrivingValue(d.ventilatorio);
@@ -2000,7 +2040,7 @@ function runValidations(d,engineWarnings){
 
   const k=findExamNumber(d,[/^k$/i,/pot[aá]ssio/i,/\bk\+/i]);
   if(k!==null && k>=6) warns.push(`⚠ Potássio ${k} — hipercalemia importante. Confirmar ECG, cálcio se alteração eletrocardiográfica/instabilidade e medidas de redistribuição/eliminação.`);
-  const insulinaAtiva=hasActiveDrug(d.outras_infusoes,[/insulina/i],'droga') || hasActiveDrug(d.sedacao,[/insulina/i],'droga') || hasActiveDrug(d.dva,[/insulina/i],'droga');
+  const insulinaAtiva=hasActiveDrug(asArray(d.outras_infusoes).filter(isContinuousInfusion),[/insulina/i],'droga') || hasActiveDrug(d.sedacao,[/insulina/i],'droga') || hasActiveDrug(d.dva,[/insulina/i],'droga');
   if(k!==null && k<3.5 && !insulinaAtiva) warns.push(`⚠ Potássio ${k} — valor baixo se expresso em mmol/L ou mEq/L. Confirmar unidade/referência, ECG e necessidade de reposição conforme contexto.`);
   if(k!==null && k<3.5 && insulinaAtiva) warns.push(`⛔ K ${k} mmol/L com insulina em infusão/uso estruturado — risco crítico. Em CAD/EHH, postergar/pausar insulina e repor potássio até K > 3,5 mmol/L, conforme contexto clínico.`);
   const mg=findExamNumber(d,[/^mg$/i,/magn[eé]sio/i]);
@@ -2131,8 +2171,26 @@ function fSedacao(sed){
   const itens=(sed||[]).filter(s=>s.droga).map(s=>{let r=s.droga; if(s.dose)r+=` ${s.dose} ${s.unidade||''}`; return r.trim();});
   return itens.length?itens.join('\n'):'---';
 }
+function isContinuousInfusion(o){
+  if(!o||!cleanStr(o.droga))return false;
+  const raw=[o.droga,o.dose,o.unidade,o.regime,o.detalhe].map(cleanStr).filter(Boolean).join(' ');
+  const explicitIntermittent=/\bintermitente\b/i.test(raw)
+    || /\bn[aã]o\s+(?:[eé]\s+)?(?:uma\s+)?(?:infus[aã]o\s+)?cont[ií]nu[oa]\b/i.test(raw)
+    || /\bn[aã]o\s+(?:manter\s+)?continuamente\b/i.test(raw);
+  if(explicitIntermittent)return false;
+  // BIC/bomba isoladamente NÃO define continuidade. Esquema de horário ou duração finita é intermitente.
+  const intermittent=/\b(?:1x\s*\/?\s*dia|24\s*\/\s*24|12\s*\/\s*12|8\s*\/\s*8|6\s*\/\s*6|4\s*\/\s*4|2\s*\/\s*2)\s*h?\b/i.test(raw)
+    || /\b(?:correr|infundir|administrar)\s+(?:em|por)\s+\d+(?:[.,]\d+)?\s*(?:h|hora|horas|min|minuto|minutos)\b/i.test(raw);
+  if(intermittent)return false;
+  return /\b(?:ml|mg|mcg|µg|ug|ui|u)\s*\/\s*h\b/i.test(raw)
+    || /\b(?:mg|mcg|µg|ug)\s*\/\s*kg\s*\/\s*min\b/i.test(raw)
+    || /\b(?:mg|mcg|µg|ug)\s*\/\s*min\b/i.test(raw)
+    || /\binfus[aã]o\s+cont[ií]nua\b/i.test(raw)
+    || /\b(?:manter\s+)?continuamente\b/i.test(raw)
+    || /\bcont[ií]nu[oa]\b/i.test(raw);
+}
 function fOutrasInfusoes(outras){
-  const itens=(outras||[]).filter(o=>o.droga).map(o=>{let r=o.droga; if(o.dose)r+=` ${o.dose} ${o.unidade||''}`; return r.trim();});
+  const itens=(outras||[]).filter(o=>o.droga&&isContinuousInfusion(o)).map(o=>{let r=o.droga; if(o.dose)r+=` ${o.dose} ${o.unidade||''}`; return r.trim();});
   return itens.length?itens.join('\n'):'---';
 }
 function fBNM(bnm){ const a=(bnm||[]).filter(b=>b.droga); return a.length?a.map(b=>{let r=b.droga; if(b.dose)r+=` ${b.dose}`; return r;}).join('\n'):'----'; }
@@ -2178,22 +2236,72 @@ function fProfilaxias(prof){
   }
   return { gastrica: fmt(gast), tep: fmt(tep), outros: outros.length?outros.map(fmt).join(' / '):'' };
 }
+function hemogramComponentClass(name){
+  const k=keyName(name);
+  if(/^(hb|hemoglobina|ht|hematocrito|leuco|leucocitos|leucocito|plaq|plaquetas|plaqueta)$/.test(k))return'keep';
+  if(/^(hemacias|hemacia|eritrocitos|eritrocito|vcm|hcm|chcm|rdw|neutrofilos|neutrofilo|segmentados|segmentado|bastoes|bastao|linfocitos|linfocito|monocitos|monocito|eosinofilos|eosinofilo|basofilos|basofilo|vpm|pdw)$/.test(k))return'drop';
+  return'other';
+}
+function compactHemogramResult(result){
+  const text=cleanStr(result);
+  if(!text)return text;
+  const defs=[
+    ['Hb',/(?:^|[\s|;,])(?:hb|hemoglobina)\s*[:=]?\s*([<>]?\s*\d+(?:[.,]\d+)?)/i],
+    ['Ht',/(?:^|[\s|;,])(?:ht|hemat[oó]crito)\s*[:=]?\s*([<>]?\s*\d+(?:[.,]\d+)?)/i],
+    ['Leuco',/(?:^|[\s|;,])(?:leuco(?:citos?)?|leuc[oó]citos?)\s*[:=]?\s*([<>]?\s*\d+(?:[.,]\d+)?)/i],
+    ['Plaq',/(?:^|[\s|;,])(?:plaq(?:uetas?)?|plaquetas?)\s*[:=]?\s*([<>]?\s*\d+(?:[.,]\d+)?)/i]
+  ];
+  const out=[];
+  defs.forEach(([label,re])=>{const m=text.match(re);if(m)out.push(`${label} ${cleanStr(m[1])}`);});
+  return out.length?out.join(' | '):text;
+}
+function normalizeExamsForOutput(exams){
+  const out=[];
+  asArray(exams).forEach(e=>{
+    if(!e||!cleanStr(e.nome))return;
+    const k=keyName(e.nome);
+    if(k.startsWith('hemograma')||/^hmg(?:\s|$)/.test(k)){
+      out.push({...e,resultado:compactHemogramResult(e.resultado)});
+      return;
+    }
+    if(hemogramComponentClass(e.nome)==='drop')return;
+    out.push({...e});
+  });
+  return out;
+}
+function examResultForOutput(e){
+  let result=cleanStr(e&&e.resultado), unit=cleanStr(e&&e.unidade);
+  if(result&&unit){
+    const esc=unit.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    result=result.replace(new RegExp('\\s*'+esc+'\\s*$','i'),'').trim();
+  }
+  return result;
+}
 function buildExames(d){
   const lines=[];
-  const exArr=asArray(d.exames);
+  const exArr=sortAndDedupeExams(normalizeExamsForOutput(d.exames));
+  const unitConflicts=unitConflictNames(exArr);
   if(exArr.length){
     const byTipo={};
-    exArr.forEach(e=>{ const t=e.tipo||'outro'; if(!byTipo[t])byTipo[t]=[]; byTipo[t].push(e); });
+    exArr.forEach(e=>{ const t=['lab','imagem','gasometria','cultura','outro'].includes(e.tipo)?e.tipo:'outro'; if(!byTipo[t])byTipo[t]=[]; byTipo[t].push(e); });
     const labels={lab:'LABORATORIAIS',imagem:'IMAGEM',gasometria:'GASOMETRIA',cultura:'CULTURAS',outro:'OUTROS'};
     for(const t of ['lab','gasometria','cultura','imagem','outro']){
       if(!byTipo[t])continue;
       lines.push(labels[t]+':');
-      byTipo[t].forEach(e=>{ let s=e.nome; if(e.data)s+=` (${e.data}${e.hora?' '+e.hora:''})`; if(e.resultado)s+=`: ${e.resultado}`; lines.push(s); });
+      byTipo[t].forEach(e=>{
+        let row=cleanStr(e.nome);
+        row+=e.data?` (${e.data}${e.hora?' '+e.hora:''})`:' (SEM DATA REGISTRADA)';
+        let result=examResultForOutput(e);
+        const unit=cleanStr(e.unidade);
+        if(unitConflicts.has(keyName(e.nome))&&unit)result=result?`${result} ${unit}`:unit;
+        if(result)row+=`: ${result}`;
+        lines.push(row);
+      });
     }
   }
   // fallback legado, caso a extração ainda venha no formato antigo exames_lab/exames_imagem
-  if(!exArr.length && d.exames_lab&&d.exames_lab.length){ lines.push('LABORATORIAIS:'); d.exames_lab.forEach(e=>{const s=examStr(e);if(s)lines.push(s);}); }
-  if(!exArr.length && d.exames_imagem&&d.exames_imagem.length){ lines.push('IMAGEM:'); d.exames_imagem.forEach(e=>{const s=examStr(e);if(s)lines.push(s);}); }
+  if(!exArr.length && d.exames_lab&&d.exames_lab.length){ lines.push('LABORATORIAIS:'); d.exames_lab.forEach(e=>{const x=examStr(e);if(x)lines.push(x);}); }
+  if(!exArr.length && d.exames_imagem&&d.exames_imagem.length){ lines.push('IMAGEM:'); d.exames_imagem.forEach(e=>{const x=examStr(e);if(x)lines.push(x);}); }
   return lines.length?lines.join('\n'):'---';
 }
 // Pré-evolução: compactação apenas de apresentação. O array clínico original não é alterado.
@@ -2217,14 +2325,27 @@ function sortAndDedupeExams(exams){
       return a.score-b.score||a.index-b.index;
     }).map(x=>x.e);
 }
-function formatCompactExam(e){
-  let result=cleanStr(e.resultado), unit=cleanStr(e.unidade);
-  if(unit&&result&&!keyName(result).includes(keyName(unit)))result+=` ${unit}`;
-  else if(unit&&!result)result=unit;
+function unitConflictNames(exams){
+  const byName=new Map();
+  asArray(exams).forEach(e=>{
+    const name=keyName(e&&e.nome), unit=cleanStr(e&&e.unidade);
+    if(!name||!unit)return;
+    if(!byName.has(name))byName.set(name,new Set());
+    byName.get(name).add(keyName(unit));
+  });
+  return new Set([...byName.entries()].filter(([,units])=>units.size>1).map(([name])=>name));
+}
+function formatCompactExam(e,showUnit=false){
+  showUnit=showUnit||Boolean(e&&e.__showUnit);
+  let result=examResultForOutput(e);
+  const unit=cleanStr(e&&e.unidade);
+  if(showUnit&&unit)result=result?`${result} ${unit}`:unit;
   return `${cleanStr(e.nome)}${result?`: ${result}`:''}`;
 }
 function buildExamesCompactos(d){
-  const exams=sortAndDedupeExams(d&&d.exames);
+  const exams=sortAndDedupeExams(normalizeExamsForOutput(d&&d.exames));
+  const unitConflicts=unitConflictNames(exams);
+  exams.forEach(e=>{if(unitConflicts.has(keyName(e.nome)))e.__showUnit=true;});
   if(!exams.length)return'';
   const labels={lab:'LAB',gasometria:'GASO',cultura:'CULTURAS',imagem:'IMAGEM',outro:'OUTROS'};
   const order=['lab','gasometria','cultura','imagem','outro'];
@@ -2239,11 +2360,11 @@ function buildExamesCompactos(d){
     const byType={};
     group.forEach(e=>{const t=labels[e.tipo]?e.tipo:'outro';(byType[t]||(byType[t]=[])).push(e);});
     return order.filter(t=>byType[t]?.length)
-      .map(t=>`${labels[t]} [${date}]: ${byType[t].map(formatCompactExam).join(' | ')}`);
+      .map(t=>`${labels[t]} [${date}]: ${byType[t].map(e=>formatCompactExam(e)).join(' | ')}`);
   };
   const lines=[];
   dated.forEach((group,date)=>lines.push(...renderGroup(date,group)));
-  if(undated.length)lines.push(...renderGroup('SEM DATA INFORMADA',undated));
+  if(undated.length)lines.push(...renderGroup('SEM DATA REGISTRADA',undated));
   return lines.join('\n');
 }
 function preparePreEvolutionData(finalData){
@@ -2258,14 +2379,12 @@ function buildInterconsultas(d){
   const arr=asArray(d.interconsultas).filter(i=>i&&i.especialidade);
   if(!arr.length)return'---';
   return arr.map(i=>{
-    // Ausência de data continua visível no card de conflitos/pendências, mas não é injetada como
-    // marcador técnico dentro do documento clínico pronto. Quando existe, a data permanece explícita.
-    const dataStr=i.data?`[${i.data}${i.hora?' '+i.hora:''}] `:'';
-    let s=`${dataStr}${i.especialidade.toUpperCase()}`;
-    if(i.status)s+=` — ${String(i.status).toUpperCase()}`;
-    if(i.motivo)s+=`\n  Motivo: ${i.motivo}`;
-    if(i.parecer)s+=`\n  Parecer: ${i.parecer}`;
-    return s;
+    const dataStr=i.data?`[${i.data}${i.hora?' '+i.hora:''}] `:'[SEM DATA REGISTRADA] ';
+    let out=`${dataStr}${String(i.especialidade).toUpperCase()}`;
+    if(i.status)out+=` — ${String(i.status).toUpperCase()}`;
+    if(i.motivo)out+=`\n  Motivo: ${i.motivo}`;
+    if(i.parecer)out+=`\n  Parecer: ${i.parecer}`;
+    return out;
   }).join('\n');
 }
 function normalizeControleKey(s){
@@ -2806,7 +2925,7 @@ Agora gere a passagem de plantão para o caso a seguir, seguindo exatamente este
 // ═══════════════════════════════════════════════════════
 function buildSystemPrompt(modo,dict){
   const styleInstr = STYLE==='usual'
-    ? `LINGUAGEM: use abreviações médicas naturais de plantão (ATB, SV, DVA, VM, AC, AP, MV+, BRNF, RHA+, CVC, TOT, SVD, Norad, Mero, Vanco, Tazo) conforme o Dicionário RECH abaixo. NUNCA escreva "citado previamente", "conforme documento anterior", "de acordo com evolução" — isso denuncia texto gerado por IA. Cite datas apenas quando clinicamente úteis (dia de tratamento, início/fim de uso).`
+    ? `LINGUAGEM: use abreviações médicas naturais de plantão (ATB, SV, DVA, VM, AC, AP, MV+, BRNF, RHA+, CVC, TOT, SVD, Norad, Mero, Vanco, Tazo) conforme o Dicionário RECH abaixo. NUNCA escreva "citado previamente", "conforme documento anterior", "de acordo com evolução" — isso denuncia texto gerado por IA. EXCEÇÃO obrigatória: quando uma expressão temporal relativa vier de fonte sem data identificável, deixe explícito "conforme documento sem data registrada". Sempre normalize hoje/ontem/amanhã e intervalos relativos para data absoluta quando a data do documento-fonte for conhecida; preserve aproximação quando a fonte disser "cerca de"/"aproximadamente".`
     : `LINGUAGEM: técnica/formal, siglas expandidas quando apropriado, objetiva, sem "citado previamente" ou linguagem de IA.`;
   const campos = modo==='emergencia'
     ? 'nome, idade, leito, alergias, hipoteses[], hda, evolucao_medica, antecedentes, medicacoes_continuas[], ac, ap{mv,ra}, abdome, neurologico, impressao_clinica, condutas[]'
@@ -2821,6 +2940,8 @@ O bloco "DOCUMENTOS PRÉVIOS" pode conter múltiplos documentos separados pelo m
 REGRAS DE EXTRAÇÃO (não de decisão):
 1. Para cada droga/dispositivo/ATB mencionado em QUALQUER input (documentos prévios OU atualizações), crie um item com: nome/droga, dose (se houver), status (uma destas palavras: iniciado, mantido, suspenso, retirado, ajustado, realizado), data (se explícita no texto, formato dd/mm), hora (se explícita, HH:MM), origem ("atualizacao_nova" se veio do bloco "ATUALIZAÇÕES DE HOJE", "documento_previo" se veio do bloco "DOCUMENTOS PRÉVIOS"), tipo_documento (um de: parecer, prescricao, evolucao, admissao, alta, outro — inferido do texto do documento prévio; "outro" se não identificável), ordem (índice sequencial de menção dentro do mesmo bloco, começando em 0).
 1b. CRÍTICO — AÇÃO EXECUTADA vs. INTENÇÃO/PLANO FUTURO: só extraia um evento com status "suspenso"/"retirado"/"iniciado"/"realizado" se o texto descrever algo que JÁ ACONTECEU. Frases no futuro, condicional, ou que descrevem plano ("suspender amanhã", "vou trocar para X se piorar", "considerar suspensão", "programado para retirar CVC na alta", "se necessário, iniciar Y") NÃO geram evento de mudança de status — o item estruturado (ATB/DVA/dispositivo) mantém seu status ATUAL inalterado. Esse tipo de frase deve ir para o array "condutas" como texto livre (ex: "Suspender ATB amanhã se afebril"), preservando a intenção sem a tratar como fato consumado. Isso vale igualmente para nutrição, profilaxias, ventilatório e antitromboticos.
+1c. CRÍTICO — TEMPORALIDADE/ÂNCORA: expressões relativas ("hoje", "ontem", "amanhã", "há X dias/semanas/meses", "semana passada") pertencem à DATA DO DOCUMENTO-FONTE, não à data atual do aplicativo. Se a data do documento-fonte for conhecida, converta a referência para data absoluta (dd/mm/aaaa quando o ano estiver disponível) e preserve o estado do evento: "amanhã fará" vira "programado para DD/MM/AAAA", NUNCA "realizado". Se a expressão for aproximada, a data derivada continua aproximada. Se a data do documento-fonte NÃO puder ser determinada, NÃO invente data: em campos narrativos use explicitamente "conforme documento sem data registrada, há X..." (ou formulação equivalente que deixe a ausência da âncora inequívoca) e, em campos estruturados, mantenha data=null.
+1d. CRÍTICO — OUTRAS INFUSÕES CONTÍNUAS: este array é EXCLUSIVAMENTE para fármacos realmente mantidos em infusão contínua, sem esquema intermitente de horário, e que não pertençam a DVA, sedação/analgesia, BNM, ATB ou antitrombóticos. "Em BIC"/"em bomba" isoladamente NÃO significa contínuo. Cefepime 8/8h infundido em 3h, piperacilina/tazobactam 6/6h correndo em 1h, ou qualquer fármaco 6/6h, 8/8h, 12/12h, 24/24h/1x-dia continuam INTERMITENTES e NÃO entram em outras_infusoes. Evidência típica de contínuo: taxa sustentada (mL/h, mg/h, mcg/h, mcg/kg/min, UI/h, U/h, mg/min) ou texto explícito "infusão contínua"/"manter continuamente".
 2. NÃO decida qual versão vence — extraia TODAS as menções, mesmo conflitantes. Isso inclui extrair a MESMA droga múltiplas vezes se aparecer em documentos diferentes com dados diferentes.
 3. NÃO infira nada que não esteja explícito no texto/imagem. Campos sem informação ficam null ou array vazio.
 3b. RASTREABILIDADE OBRIGATÓRIA: sempre retorne o array "rastreabilidade", mesmo quando vazio. Ele registra SOMENTE conteúdo clínico que não seja transcrição literal:
@@ -2833,9 +2954,11 @@ REGRAS DE EXTRAÇÃO (não de decisão):
 5. Campos clínicos estáticos (${campos}) — extraia a versão mais completa disponível entre todos os documentos; se houver conflito real de texto (não de droga/dispositivo), prefira o texto de ATUALIZAÇÕES DE HOJE, senão o documento mais recente.
 6. NUTRIÇÃO: extraia como array "nutricao": [{"tipo":"enteral"|"parenteral"|"via_oral"|"zero","detalhe":"ex: SNE 20ml/h","status":"iniciado"|"mantido"|"suspenso"|"progredido"|"reduzido","data":"","hora":"","origem":"","tipo_documento":"","ordem":0}]. "Progredido"/"reduzido" indicam ajuste de taxa/detalhe, NÃO suspensão — mantenha o status literal, o motor externo decide o que isso significa.
 7. PROFILAXIAS: extraia como array "profilaxias": [{"categoria":"gastrica"|"tep"|"outros","metodo":"ex: Omeprazol EV, Enoxaparina 40mg SC, Mudança de decúbito","status":"mantido"|"suspenso"|"trocado","motivo_suspensao":null,"data":"","hora":"","origem":"","tipo_documento":"","ordem":0}]. Se o texto mencionar motivo de suspensão (sangramento, plaquetopenia etc.), preencha motivo_suspensao. "outros" cobre profilaxias que não são gástrica nem TEP (ex: mudança de decúbito).
-8. EXAMES: NUNCA versione exames — cada exame mencionado em qualquer documento é um evento histórico que DEVE ser mantido, mesmo que exista outro exame igual em data diferente. Extraia como array "exames": [{"tipo":"lab"|"imagem"|"gasometria"|"cultura","nome":"ex: Hemograma, TC crânio, Hemocultura","resultado":"","data":"OBRIGATÓRIO — se não houver data explícita no texto, deixe null e isso será sinalizado como pendência","hora":""}]. NÃO inclua origem/tipo_documento/ordem em exames — eles não competem entre si, apenas se acumulam cronologicamente.
+8. EXAMES: NUNCA versione nem descarte exames. TODO exame fornecido deve ser extraído, inclusive exames não previstos em listas fechadas: laboratório, gasometria, cultura, ECG, ecocardiograma, radiografia, TC, RM, ultrassom, Doppler, endoscopia, broncoscopia, anatomopatológico e qualquer outro. Use tipo="outro" quando nenhuma categoria específica servir. Cada exame é evento histórico e deve manter sua temporalidade individual. Estrutura: "exames": [{"tipo":"lab"|"imagem"|"gasometria"|"cultura"|"outro","nome":"","resultado":"","unidade":"","data":"","hora":""}]. Se houver unidade explícita, extraia-a separadamente em "unidade"; NÃO a repita dentro de "resultado". Se a data do exame for explícita, use-a. Se houver referência relativa e a data do documento-fonte for conhecida, resolva a data conforme 1c. Sem âncora confiável, data=null — nunca invente.
+8a. HEMOGRAMA — ÚNICA EXCEÇÃO DE SELEÇÃO: no output clínico do hemograma devem permanecer apenas Hb, Ht, leucócitos e plaquetas. Não transportar automaticamente hemácias, VCM, HCM, CHCM, RDW, diferencial leucocitário ou índices plaquetários para o documento final. Esta restrição vale SOMENTE para o hemograma. Todos os demais exames devem ser preservados integralmente.
+8b. INTERPRETAÇÃO/PRESERVAÇÃO: para laudos e exames não laboratoriais, preserve todos os achados/conclusões explicitamente fornecidos; não descarte um exame por ser desconhecido. Para exames seriados, mantenha cada data/hora separada para permitir tendência. Não invente diagnóstico, causalidade ou gravidade além do laudo/fonte; qualquer síntese/reformulação deve continuar declarada em rastreabilidade.
 
-8c. INTERCONSULTAS: NUNCA versione interconsultas — cada solicitação/parecer de especialidade mencionado em qualquer documento é um evento histórico que DEVE ser mantido e acumulado, mesmo que exista outra interconsulta da mesma especialidade em data diferente (ex: dois pareceres de Cardiologia em dias distintos são DOIS eventos, não um substituindo o outro). Extraia como array "interconsultas": [{"especialidade":"ex: Cardiologia, Cirurgia Geral, Nefrologia","motivo":"motivo da solicitação, se explícito","parecer":"resposta/conduta sugerida pelo especialista, se já houver","status":"solicitada"|"respondida","data":"OBRIGATÓRIO E CRÍTICO — cada interconsulta DEVE ter sua data explícita e individualizada; NUNCA deixe implícita, NUNCA reutilize a data de outro documento, e NUNCA agrupe duas interconsultas de datas diferentes sob uma única data. Se o texto-fonte não mencionar data explícita para aquela interconsulta específica, o campo fica null e isso É OBRIGATORIAMENTE sinalizado como pendência de confirmação manual — nunca infira ou aproxime uma data.","hora":""}]. Se o texto só menciona que foi "solicitada interconsulta com X" sem resposta ainda, status="solicitada" e parecer=null. NÃO inclua origem/tipo_documento/ordem aqui — assim como exames, interconsultas não competem entre si, apenas se acumulam cronologicamente, sempre ordenadas por data.
+8c. INTERCONSULTAS: cada solicitação/parecer de especialidade é evento histórico próprio e deve ser mantido. Extraia "interconsultas": [{"especialidade":"","motivo":"","parecer":"","status":"solicitada"|"aguardando"|"realizada"|"reavaliada"|"acompanhamento"|"encerrada","data":"","hora":""}]. Solicitação NÃO é parecer realizado: se só houver "solicitada avaliação de X", status="solicitada" e parecer=null. Parecer efetivamente descrito usa status="realizada" (ou reavaliada/acompanhamento quando explícito) e preserva a orientação. Temporalidade segue 1c: referência relativa + documento datado deve ser convertida para data absoluta; sem âncora confiável, data=null e a ausência deve permanecer explícita no output — nunca invente nem reutilize data de outro documento. Interconsultas da mesma especialidade em datas distintas são eventos distintos e não se substituem.
 9. VENTILATÓRIO: extraia como array "ventilatorio" — cada menção a parâmetros de VM (modo, FiO2, PEEP, PS, VC, FR, Pplat) em qualquer documento é um evento com seus próprios origem/data/hora/tipo_documento/ordem, IGUAL aos outros eventos versionados. Um evento pode conter só os campos mencionados naquele trecho (ex: "reduzo FiO2 para 35%" gera um evento só com fio2 preenchido, sem repetir modo/peep). Se o paciente foi EXTUBADO, crie um evento com "status":"extubado" (pode omitir os demais campos) — isso é tratado como fim da ventilação mecânica pelo motor externo, não decida você se os parâmetros anteriores continuam válidos.
 10. ANTIAGREGANTES/ANTICOAGULANTES: qualquer antiagregante (AAS, clopidogrel, ticagrelor, prasugrel) ou anticoagulante (heparina não fracionada, enoxaparina, varfarina, rivaroxabana) administrado ou orientado — mesmo em infusão contínua tipo "heparina em bomba" — vai no array "antitromboticos", SEPARADO de "medicacoes_continuas" (que é só para medicação domiciliar/crônica de uso prévio à internação) e SEPARADO de "atb" (que é só antimicrobiano). Segue o MESMO formato de evento versionado com origem/data/hora/tipo_documento/ordem — uma troca de antiagregante (ex: parecer orienta suspender clopidogrel e iniciar ticagrelor) é IGUAL a uma troca de ATB: extraia os dois eventos, o motor externo decide qual prevalece.
 
@@ -2860,8 +2983,8 @@ Retorne APENAS um objeto JSON válido, sem markdown, com esta estrutura:
   "gasometria": {"ph":"","paco2":"","pao2":"","hco3":"","lactato":""},
   "nutricao": [{"tipo":"","detalhe":"","status":"","data":"","hora":"","origem":"","tipo_documento":"","ordem":0}],
   "profilaxias": [{"categoria":"","metodo":"","status":"","motivo_suspensao":null,"data":"","hora":"","origem":"","tipo_documento":"","ordem":0}],
-  "exames": [{"tipo":"","nome":"","resultado":"","data":"","hora":""}],
-  "interconsultas": [{"especialidade":"","motivo":"","parecer":"","status":"","data":"","hora":""}],
+  "exames": [{"tipo":"","nome":"","resultado":"","unidade":"","data":"","hora":""}],
+  "interconsultas": [{"especialidade":"","motivo":"","parecer":"","status":"solicitada|aguardando|realizada|reavaliada|acompanhamento|encerrada","data":"","hora":""}],
   "controles": [],
   "rastreabilidade": [{"trecho_final":"","tipo":"inferido|reformulado","texto_fonte":"","justificativa":""}]
 }`;
@@ -2912,8 +3035,8 @@ function buildCriticalPendencies(d,warns){
     if(!cleanStr(d.ventilatorio.peep)) p.push('VM sem PEEP.');
     if(!cleanStr(d.gasometria&&d.gasometria.pao2)) p.push('VM sem PaO₂/gasometria estruturada para P/F.');
   }
-  if(asArray(warns).some(w=>String(w).includes('⛔'))) p.push('Existe alerta crítico bloqueante no card de alertas.');
-  if(asArray(warns).some(w=>/conflito|CONFIRME MANUALMENTE/i.test(String(w)))) p.push('Existe conflito de estado não resolvido; confirme/corrija os dados antes de copiar.');
+  if(asArray(warns).some(w=>String(w).includes('⛔'))) p.push('Existe alerta crítico no card de alertas; revise antes de usar o documento.');
+  if(asArray(warns).some(w=>/conflito|CONFIRME MANUALMENTE/i.test(String(w)))) p.push('Existe conflito de estado não resolvido; confirme/corrija os dados antes de usar o documento.');
   return [...new Set(p)];
 }
 function extractExplicitCondutas(text){
@@ -3398,12 +3521,53 @@ async function callDeepSeek(systemPrompt, contentParts, model, key, signal){
   if(!text) return {ok:false, errorMsg:'Resposta vazia do DeepSeek.'};
   return {ok:true, text};
 }
+async function callOpenAICompatibleEndpoint(providerName, endpoint, systemPrompt, contentParts, model, key, signal){
+  const oaContent=contentParts.map(p=>{
+    if(p.type==='text') return {type:'text',text:p.text};
+    if(p.type==='image') return {type:'image_url',image_url:{url:`data:${p.source.media_type};base64,${p.source.data}`}};
+    return null;
+  }).filter(Boolean);
+  const resp=await fetch(endpoint,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body:JSON.stringify({model,max_tokens:32000,messages:[{role:'system',content:systemPrompt},{role:'user',content:oaContent}]}),
+    signal
+  });
+  const data=await resp.json().catch(()=>({}));
+  if(!resp.ok)return {ok:false,errorMsg:(data.error&&data.error.message)?(`Erro ${resp.status}: ${data.error.message}`):(`Erro HTTP ${resp.status}`)};
+  const choice=((data.choices||[])[0]||{});
+  if(choice.message&&choice.message.refusal)return {ok:false,errorMsg:'O provedor recusou processar este conteúdo: '+choice.message.refusal};
+  const raw=choice.message&&choice.message.content;
+  const text=Array.isArray(raw)?raw.map(x=>x&&x.text?x.text:'').join('').trim():String(raw||'').trim();
+  if(choice.finish_reason==='length')return {ok:true,text,truncated:true};
+  if(['content_filter','refusal'].includes(choice.finish_reason))return {ok:false,errorMsg:'A resposta foi bloqueada/recusada pelo provedor.'};
+  if(!text)return {ok:false,errorMsg:'Resposta vazia de '+providerName+'.'};
+  return {ok:true,text};
+}
+function customChatEndpoint(){
+  let base=(safeLocalStorage.getItem('custom_base_url')||'').trim().replace(/\/+$/,'');
+  if(!base)return'';
+  if(/\/chat\/completions$/i.test(base))return base;
+  if(!/\/v1$/i.test(base))base+='/v1';
+  return base+'/chat/completions';
+}
+async function callKimi(systemPrompt,contentParts,model,key,signal){
+  return callOpenAICompatibleEndpoint('Kimi','https://api.moonshot.ai/v1/chat/completions',systemPrompt,contentParts,model,key,signal);
+}
+async function callCustom(systemPrompt,contentParts,model,key,signal){
+  const endpoint=customChatEndpoint();
+  if(!endpoint)return {ok:false,errorMsg:'Configure a Base URL do provedor Custom.'};
+  return callOpenAICompatibleEndpoint('Custom',endpoint,systemPrompt,contentParts,model,key,signal);
+}
+
 async function callProvider(provider, systemPrompt, contentParts, model, key, signal){
   if(provider==='anthropic') return callAnthropic(systemPrompt, contentParts, model, key, signal);
   if(provider==='openai') return callOpenAI(systemPrompt, contentParts, model, key, signal);
   if(provider==='gemini') return callGemini(systemPrompt, contentParts, model, key, signal);
   if(provider==='deepseek') return callDeepSeek(systemPrompt, contentParts, model, key, signal);
   if(provider==='qwen') return callQwen(systemPrompt, contentParts, model, key, signal);
+  if(provider==='kimi') return callKimi(systemPrompt, contentParts, model, key, signal);
+  if(provider==='custom') return callCustom(systemPrompt, contentParts, model, key, signal);
   return {ok:false, errorMsg:'Provedor desconhecido: '+provider};
 }
 
@@ -3733,7 +3897,7 @@ function copiar(){
 }
 // Interface mínima para a suíte local de regressão. Não contém dados de paciente nem altera o
 // comportamento da aplicação; apenas expõe constantes/classes lexicais que não ficam em window.
-window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG};
+window.__RECH_TEST_API={ClinicalState,PROVIDER_CFG,isContinuousInfusion,normalizeExamsForOutput,compactHemogramResult,unitConflictNames,formatCompactExam,buildExames,buildExamesCompactos,buildInterconsultas,collectTemporalAnchoringWarnings,buildSystemPrompt};
 </script>
 </body>
 </html>
