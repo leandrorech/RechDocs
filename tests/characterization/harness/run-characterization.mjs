@@ -18,7 +18,7 @@ import * as e2e_01 from '../fixtures/e2e_full_ui_flow.mjs';
 const ARTIFACTS = [
   { key: 'baseline', label: 'Baseline v3.3.12-P1 (congelada)', path: 'baseline/rech_docs_v3_3_12_P1.html' },
   { key: 'reference', label: 'Referencia v3.4.0', path: 'reference/RechDocs_v3.4.0_reference.html' },
-  { key: 'candidate', label: 'Candidata atual (output/RechDocs_v3.4.1.html)', path: 'output/RechDocs_v3.4.1.html' },
+  { key: 'candidate', label: 'Candidata atual (output/RechDocs_v3.4.2.html)', path: 'output/RechDocs_v3.4.2.html' },
 ];
 
 const FIXTURES = [p0_01, p0_02, p0_03, ci_05, e2e_01];
